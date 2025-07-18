@@ -1,0 +1,40 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+app.log
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# User data and settings
+user-settings.json
+
+# Test files
+test-*.js
+test-*.json
+
+# Recordings and clips
+recordings/
+clips/
+
+# FFmpeg binaries
+ffmpeg
+ffmpeg.exe

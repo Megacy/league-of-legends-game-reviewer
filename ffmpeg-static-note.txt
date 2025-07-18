@@ -1,0 +1,5 @@
+// ffmpeg-static is a pure ESM package as of v5+. Use import syntax.
+import ffmpegPath from 'ffmpeg-static';
+
+// ...existing code...
+// Replace all '/opt/homebrew/bin/ffmpeg' with ffmpegPath
