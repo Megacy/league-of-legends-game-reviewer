@@ -20,6 +20,54 @@ const DEFAULT_VISIBLE = [
   'ChampionKill', 'TurretKilled', 'DragonKill', 'BaronKill', 'FirstBlood', 'Ace', 'InhibKilled', 'HeraldKill', 'Multikill',
 ];
 
+// Helper function to get player name from League Live Client API
+async function getPlayerNameFromLeague(): Promise<string | null> {
+  try {
+    if (window.electronAPI?.getLeaguePlayerInfo) {
+      const result = await window.electronAPI.getLeaguePlayerInfo();
+      if (result.ok && result.playerName) {
+        console.log('[League API] Got player name:', result.playerName);
+        return result.playerName;
+      } else {
+        console.log('[League API] Failed to get player name:', result.error);
+        return null;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('[League API] Error getting player name:', error);
+    return null;
+  }
+}
+
+// Helper function to check if an event is related to player's KDA
+function isPlayerKDAEvent(event: EventData, playerName: string): boolean {
+  if (!playerName || event.EventName !== 'ChampionKill') return false;
+  
+  // Player got a kill
+  if (event.KillerName === playerName) return true;
+  
+  // Player died
+  if (event.VictimName === playerName) return true;
+  
+  // Player got an assist
+  if (event.Assisters && event.Assisters.includes(playerName)) return true;
+  
+  return false;
+}
+
+// Helper function to get icon for KDA events
+function getKDAIcon(event: EventData, playerName: string): string {
+  if (event.VictimName === playerName) {
+    return '💀'; // Death (skull icon)
+  } else if (event.KillerName === playerName) {
+    return '⚔️'; // Kill
+  } else if (event.Assisters && event.Assisters.includes(playerName)) {
+    return '🤝'; // Assist
+  }
+  return '⚔️'; // Default
+}
+
 // Helper function to group events within 10 seconds
 interface GroupedEvent {
   eventType: string;
@@ -29,8 +77,14 @@ interface GroupedEvent {
   icon: string;
 }
 
-function groupEvents(events: EventData[], visibleTypes: string[]): GroupedEvent[] {
-  const filteredEvents = events.filter(e => visibleTypes.includes(e.EventName));
+function groupEvents(events: EventData[], visibleTypes: string[], showOnlyMyKDA: boolean = false, playerName: string = ''): GroupedEvent[] {
+  let filteredEvents = events.filter(e => visibleTypes.includes(e.EventName));
+  
+  // Additional filtering for KDA events if enabled
+  if (showOnlyMyKDA && playerName) {
+    filteredEvents = filteredEvents.filter(e => isPlayerKDAEvent(e, playerName));
+  }
+  
   const groups: GroupedEvent[] = [];
   const groupWindow = 20; // 20 seconds grouping window
   
@@ -53,16 +107,23 @@ function groupEvents(events: EventData[], visibleTypes: string[]): GroupedEvent[
     } else {
       // Create new group
       let icon = '⚔️';
-      if (event.EventName === 'ChampionKill') icon = '⚔️';
-      else if (event.EventName === 'TurretKilled') icon = '🏰';
-      else if (event.EventName === 'DragonKill') icon = '🐉';
-      else if (event.EventName === 'BaronKill') icon = '👹';
-      else if (event.EventName === 'FirstBlood') icon = '🩸';
-      else if (event.EventName === 'Ace') icon = '⭐';
-      else if (event.EventName === 'InhibKilled') icon = '💎';
-      else if (event.EventName === 'HeraldKill') icon = '🐚';
-      else if (event.EventName === 'Multikill') icon = '🔥';
-      else if (event.EventName === 'AtakhanKill') icon = '🦎';
+      
+      // Use KDA-specific icons if in KDA mode
+      if (showOnlyMyKDA && playerName && event.EventName === 'ChampionKill') {
+        icon = getKDAIcon(event, playerName);
+      } else {
+        // Default icon mapping
+        if (event.EventName === 'ChampionKill') icon = '⚔️';
+        else if (event.EventName === 'TurretKilled') icon = '🏰';
+        else if (event.EventName === 'DragonKill') icon = '🐉';
+        else if (event.EventName === 'BaronKill') icon = '👹';
+        else if (event.EventName === 'FirstBlood') icon = '🩸';
+        else if (event.EventName === 'Ace') icon = '⭐';
+        else if (event.EventName === 'InhibKilled') icon = '💎';
+        else if (event.EventName === 'HeraldKill') icon = '🐚';
+        else if (event.EventName === 'Multikill') icon = '🔥';
+        else if (event.EventName === 'AtakhanKill') icon = '🦎';
+      }
       
       groups.push({
         eventType: event.EventName,
@@ -115,6 +176,9 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
   const [visibleTypes, setVisibleTypes] = useState<string[]>(DEFAULT_VISIBLE);
   const [showDialog, setShowDialog] = useState(false);
   const [isExternalFile, setIsExternalFile] = useState(false);
+  const [showOnlyMyKDA, setShowOnlyMyKDA] = useState(false);
+  const [playerName, setPlayerName] = useState<string>('');
+  const [playerNameSource, setPlayerNameSource] = useState<'stored' | 'live' | null>(null);
 
   // --- Clip selection state ---
   const [clipMode, setClipMode] = useState(false);
@@ -135,23 +199,62 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
         if (settings.visibleEventTypes && settings.visibleEventTypes.length > 0) {
           setVisibleTypes(settings.visibleEventTypes);
         }
+        if (settings.showOnlyMyKDA !== undefined) {
+          setShowOnlyMyKDA(settings.showOnlyMyKDA);
+        }
       }).catch(err => {
         console.warn('[VideoReview] Could not load timeline settings:', err);
       });
     }
   }, []);
 
+  // Auto-detect player when events change - try League API first, fallback to event analysis
+  useEffect(() => {
+    if (events.length > 0 && !playerName) {
+      // Try League API first
+      getPlayerNameFromLeague().then(leaguePlayerName => {
+        if (leaguePlayerName) {
+          setPlayerName(leaguePlayerName);
+          setPlayerNameSource('live');
+          console.log('[VideoReview] Got player name from League API:', leaguePlayerName);
+        } else {
+          // Fallback: just pick the first non-bot player name from events
+          const playerNames = new Set<string>();
+          events.forEach(e => {
+            if (e.KillerName && !e.KillerName.includes('Bot')) playerNames.add(e.KillerName);
+            if (e.VictimName && !e.VictimName.includes('Bot')) playerNames.add(e.VictimName);
+            if (e.Assisters) {
+              e.Assisters.forEach(name => {
+                if (!name.includes('Bot')) playerNames.add(name);
+              });
+            }
+          });
+          
+          const firstPlayerName = Array.from(playerNames)[0];
+          if (firstPlayerName) {
+            setPlayerName(firstPlayerName);
+            setPlayerNameSource('live');
+            console.log('[VideoReview] Fallback: using first player name from events:', firstPlayerName);
+          }
+        }
+      }).catch(error => {
+        console.error('[VideoReview] Error getting player name from League API:', error);
+      });
+    }
+  }, [events, playerName]);
+
   // Save visible types to persistent settings when they change
   useEffect(() => {
     if (window.electronAPI?.setTimelineSettings) {
       const settings: TimelineSettings = {
-        visibleEventTypes: visibleTypes
+        visibleEventTypes: visibleTypes,
+        showOnlyMyKDA: showOnlyMyKDA
       };
       window.electronAPI.setTimelineSettings(settings).catch(err => {
         console.warn('[VideoReview] Could not save timeline settings:', err);
       });
     }
-  }, [visibleTypes]);
+  }, [visibleTypes, showOnlyMyKDA]);
   
   useEffect(() => {
     const video = videoRef.current;
@@ -233,11 +336,40 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
       
       window.electronAPI.getEventsForVideo(searchKey).then(loaded => {
         console.log('[VideoReview] Events loaded:', loaded);
-        const normalized = Array.isArray(loaded)
-          ? loaded.map((e, idx) => ({ ...e, EventID: typeof e.EventID === 'number' ? e.EventID : Number(e.EventID) || idx }))
+        
+        // Handle both old format (array) and new format (object with metadata)
+        let events: EventData[];
+        let storedPlayerName: string | null;
+        if (Array.isArray(loaded)) {
+          // Old format - just events array
+          events = loaded;
+          storedPlayerName = null;
+        } else if (loaded && typeof loaded === 'object' && 'events' in loaded) {
+          // New format with metadata
+          events = loaded.events;
+          storedPlayerName = loaded.activePlayerName || null;
+        } else {
+          events = [];
+          storedPlayerName = null;
+        }
+        
+        const normalized = Array.isArray(events)
+          ? events.map((e, idx) => ({ ...e, EventID: typeof e.EventID === 'number' ? e.EventID : Number(e.EventID) || idx }))
           : [];
         console.log('[VideoReview] Setting events state:', normalized);
         setEvents(normalized);
+        
+        // Use stored player name if available, otherwise detect
+        if (storedPlayerName) {
+          setPlayerName(storedPlayerName);
+          setPlayerNameSource('stored');
+          console.log('[VideoReview] Using stored player name from recording metadata:', storedPlayerName);
+        } else {
+          // Reset player name so detection logic can run
+          setPlayerName('');
+          setPlayerNameSource(null);
+          console.log('[VideoReview] No stored player name, will attempt detection');
+        }
       });
     }
   }, [fileBase, isExternalFile, latestFile]);
@@ -410,8 +542,8 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
               )}
               {/* Render event icons on timeline */}
               {(() => {
-                const groupedEvents = groupEvents(events, visibleTypes);
-                console.log('[Timeline] Total events:', events.length, 'Grouped events:', groupedEvents.length, 'Visible types:', visibleTypes);
+                const groupedEvents = groupEvents(events, visibleTypes, showOnlyMyKDA, playerName);
+                console.log('[Timeline] Total events:', events.length, 'Grouped events:', groupedEvents.length, 'Visible types:', visibleTypes, 'KDA mode:', showOnlyMyKDA);
                 return groupedEvents.map((group, idx) => {
                   const duration = videoDuration || videoRef.current?.duration || 1;
                   // Show icon at the actual event time
@@ -425,6 +557,9 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
                     console.log('[Timeline] Rendering grouped events:', groupedEvents.length, 'duration:', duration, 'first group time:', group.startTime, 'left:', left);
                   }
                   
+                  // Make icons non-clickable when in KDA mode
+                  const isClickable = !showOnlyMyKDA && !clipMode;
+                  
                 return (
                   <span
                     key={`${group.eventType}-${group.startTime}`}
@@ -432,12 +567,12 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
                     style={{
                       left,
                       opacity: clipMode ? 0.5 : 1,
-                      cursor: clipMode ? 'not-allowed' : 'pointer',
-                      pointerEvents: clipMode ? 'none' : 'auto',
+                      cursor: isClickable ? 'pointer' : 'default',
+                      pointerEvents: isClickable ? 'auto' : 'none',
                     }}
                     title={generateTooltip(group)}
                     onClick={e => {
-                      if (clipMode) return;
+                      if (!isClickable) return;
                       e.stopPropagation();
                       if (videoRef.current) videoRef.current.currentTime = group.startTime;
                     }}
@@ -480,7 +615,10 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
               )}
             </div>
             <div style={{ marginTop: 8, textAlign: 'center', color: '#aaa', fontSize: 14 }}>
-              Click anywhere on the timeline or on an event icon to jump to that part of the video.
+              {showOnlyMyKDA 
+                ? "Timeline shows only your kills, deaths, and assists. Icons are not clickable in KDA mode."
+                : "Click anywhere on the timeline or on an event icon to jump to that part of the video."
+              }
             </div>
             {showDialog && (
               <div style={{
@@ -488,7 +626,50 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
                 background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
               }} onClick={() => setShowDialog(false)}>
                 <div style={{ background: '#232946', color: '#fff', padding: 24, borderRadius: 8, minWidth: 300, textAlign: 'left', boxShadow: '0 4px 24px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
-                  <h3 style={{ color: '#fff', marginTop: 0, marginBottom: 16 }}>Show Event Types</h3>
+                  <h3 style={{ color: '#fff', marginTop: 0, marginBottom: 16 }}>Timeline Settings</h3>
+                  
+                  {/* KDA Filter Toggle */}
+                  <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #444' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', fontWeight: 500, color: '#fff', cursor: 'pointer', marginBottom: 12 }}>
+                      <input
+                        type="checkbox"
+                        checked={showOnlyMyKDA}
+                        onChange={(e) => setShowOnlyMyKDA(e.target.checked)}
+                        style={{ marginRight: 8 }}
+                      />
+                      Show only my KDA (Kills, Deaths, Assists)
+                    </label>
+                    
+                    {/* Show detected player name */}
+                    {playerName ? (
+                      <div style={{ marginLeft: 20, marginBottom: 8 }}>
+                        <div style={{ fontSize: 12, color: '#aaa', marginBottom: 4 }}>
+                          Detected Player: <span style={{ color: '#4caf50', fontWeight: 'bold' }}>{playerName}</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#666' }}>
+                          {playerNameSource === 'stored' 
+                            ? 'Stored from recording session' 
+                            : 'Detected from League Live Client API'
+                          }
+                        </div>
+                      </div>
+                    ) : showOnlyMyKDA && (
+                      <div style={{ marginLeft: 20, marginBottom: 8 }}>
+                        <div style={{ fontSize: 12, color: '#ff6b35' }}>
+                          No player detected. Make sure League of Legends is running.
+                        </div>
+                      </div>
+                    )}
+                    
+                    {showOnlyMyKDA && (
+                      <div style={{ fontSize: 12, color: '#aaa', marginTop: 4, marginLeft: 20 }}>
+                        💀 = Death, ⚔️ = Kill, 🤝 = Assist
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Event Type Filters */}
+                  <h4 style={{ color: '#fff', marginBottom: 12, fontSize: 16 }}>Show Event Types</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {typesToShow.map(type => (
                       <label key={type} style={{ display: 'flex', alignItems: 'center', fontWeight: 500, color: '#fff' }}>
@@ -497,8 +678,11 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
                           checked={visibleTypes.includes(type)}
                           onChange={() => handleTypeToggle(type)}
                           style={{ marginRight: 8 }}
+                          disabled={showOnlyMyKDA && type !== 'ChampionKill'}
                         />
-                        {EVENT_TYPE_LABELS[type] || type}
+                        <span style={{ opacity: showOnlyMyKDA && type !== 'ChampionKill' ? 0.5 : 1 }}>
+                          {EVENT_TYPE_LABELS[type] || type}
+                        </span>
                       </label>
                     ))}
                   </div>
