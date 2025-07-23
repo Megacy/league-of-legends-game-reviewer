@@ -149,7 +149,7 @@ async function startRecording(settings = {}) {
     // Start event recording regardless of mode
     if (eventRecorder) await eventRecorder.stopRecording();
     eventRecorder = new EventRecorder({ outputDir: recordingsDirectory });
-    eventRecorder.startRecording(currentFileBase);
+    await eventRecorder.startRecording(currentFileBase);
     console.log('[DEBUG] Event recorder started for:', currentFileBase);
     
     const recordingMode = settings.recordingMode || getRecordingMode();
@@ -583,6 +583,51 @@ ipcMain.handle('get-recordings-directory', async () => {
   return recordingsDirectory;
 });
 
+// Get current player info from League Live Client Data API
+ipcMain.handle('get-league-player-info', async () => {
+  try {
+    const https = await import('https');
+    const fetch = (await import('node-fetch')).default;
+    
+    // Get active player info
+    const response = await fetch('https://127.0.0.1:2999/liveclientdata/activeplayername', {
+      agent: new https.Agent({ rejectUnauthorized: false }),
+      timeout: 3000
+    });
+    
+    if (response.ok) {
+      const playerName = await response.text();
+      // Clean up the response - remove quotes and hashtag portion
+      const cleanPlayerName = playerName.replace(/"/g, '').split('#')[0];
+      logToFile(`[LeagueAPI] Active player name: ${cleanPlayerName}`);
+      return { ok: true, playerName: cleanPlayerName };
+    } else {
+      // Try alternative endpoint for all game data
+      const allDataResponse = await fetch('https://127.0.0.1:2999/liveclientdata/allgamedata', {
+        agent: new https.Agent({ rejectUnauthorized: false }),
+        timeout: 3000
+      });
+      
+      if (allDataResponse.ok) {
+        const gameData = await allDataResponse.json();
+        // Find the active player in the list
+        const activePlayer = gameData.allPlayers?.find(player => player.summonerName && !player.isBot);
+        if (activePlayer) {
+          const cleanPlayerName = activePlayer.summonerName.split('#')[0];
+          logToFile(`[LeagueAPI] Found active player from allgamedata: ${cleanPlayerName}`);
+          return { ok: true, playerName: cleanPlayerName };
+        }
+      }
+      
+      logToFile(`[LeagueAPI] Failed to get player info - League client not running or not in game`);
+      return { ok: false, error: 'League client not running or not in game' };
+    }
+  } catch (error) {
+    logToFile(`[LeagueAPI] Error getting player info: ${error.message}`);
+    return { ok: false, error: error.message };
+  }
+});
+
 // Add IPC handler for 'get-events-for-video' to load the events JSON for a given video file base.
 ipcMain.handle('get-events-for-video', async (_event, fileBase) => {
   try {
@@ -604,16 +649,32 @@ ipcMain.handle('get-events-for-video', async (_event, fileBase) => {
     
     if (fs.existsSync(eventsPath)) {
       const data = fs.readFileSync(eventsPath, 'utf-8');
-      const events = JSON.parse(data);
-      logToFile(`[EVENTS] Found ${events.length} events`);
-      return events;
+      const parsedData = JSON.parse(data);
+      
+      // Handle new format with metadata or old format (array)
+      let events, activePlayerName = null;
+      if (Array.isArray(parsedData)) {
+        // Old format - just an array of events
+        events = parsedData;
+        logToFile(`[EVENTS] Found ${events.length} events (old format)`);
+      } else if (parsedData.events && Array.isArray(parsedData.events)) {
+        // New format with metadata
+        events = parsedData.events;
+        activePlayerName = parsedData.metadata?.activePlayerName;
+        logToFile(`[EVENTS] Found ${events.length} events (new format) with player: ${activePlayerName}`);
+      } else {
+        logToFile(`[EVENTS] Invalid events file format`);
+        return { events: [], activePlayerName: null };
+      }
+      
+      return { events, activePlayerName };
     } else {
       logToFile(`[EVENTS] No events file found`);
-      return [];
+      return { events: [], activePlayerName: null };
     }
   } catch (e) {
     logToFile(`[EVENTS] Error loading events: ${e.message}`);
-    return [];
+    return { events: [], activePlayerName: null };
   }
 });
 

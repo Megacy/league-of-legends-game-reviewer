@@ -17,17 +17,57 @@ class EventRecorder {
     this.fileBase = null;
     this.playerList = []; // Cache player-champion mapping
     this.lastPlayerListUpdate = 0;
+    this.activePlayerName = null; // Store the active player name
   }
 
-  startRecording(fileBase) {
+  async startRecording(fileBase) {
     this.events = [];
     this.startTime = Date.now();
     this.fileBase = fileBase;
     this.polling = true;
     this.playerList = []; // Reset player list cache
     this.lastPlayerListUpdate = 0;
-    console.log('[EVENT RECORDER] Started recording for fileBase:', fileBase);
+    this.activePlayerName = null;
+    
+    // Try to get the active player name when starting recording
+    await this.detectActivePlayer();
+    
+    console.log('[EVENT RECORDER] Started recording for fileBase:', fileBase, 'Player:', this.activePlayerName);
     this.timer = setInterval(() => this.poll(), this.pollInterval);
+  }
+
+  async detectActivePlayer() {
+    try {
+      // Try the activeplayername endpoint first
+      const nameRes = await fetch('https://127.0.0.1:2999/liveclientdata/activeplayername', {
+        agent: new https.Agent({ rejectUnauthorized: false }),
+        timeout: 3000
+      });
+      
+      if (nameRes.ok) {
+        const playerName = await nameRes.text();
+        this.activePlayerName = playerName.replace(/"/g, '').split('#')[0]; // Clean up quotes and tag
+        console.log('[EVENT RECORDER] Detected active player:', this.activePlayerName);
+        return;
+      }
+      
+      // Fallback: try allgamedata endpoint
+      const allDataRes = await fetch('https://127.0.0.1:2999/liveclientdata/allgamedata', {
+        agent: new https.Agent({ rejectUnauthorized: false }),
+        timeout: 3000
+      });
+      
+      if (allDataRes.ok) {
+        const gameData = await allDataRes.json();
+        const activePlayer = gameData.allPlayers?.find(player => player.summonerName && !player.isBot);
+        if (activePlayer) {
+          this.activePlayerName = activePlayer.summonerName.split('#')[0];
+          console.log('[EVENT RECORDER] Detected active player from allgamedata:', this.activePlayerName);
+        }
+      }
+    } catch (error) {
+      console.log('[EVENT RECORDER] Could not detect active player:', error.message);
+    }
   }
 
   async stopRecording() {
@@ -37,8 +77,19 @@ class EventRecorder {
     if (this.fileBase) {
       const outPath = path.join(this.outputDir, `${this.fileBase}.events.json`);
       fs.mkdirSync(this.outputDir, { recursive: true });
-      await fs.promises.writeFile(outPath, JSON.stringify(this.events, null, 2));
-      console.log('[EVENT RECORDER] Wrote events to:', outPath);
+      
+      // Create the events file with metadata
+      const eventsData = {
+        metadata: {
+          recordedAt: new Date().toISOString(),
+          activePlayerName: this.activePlayerName,
+          totalEvents: this.events.length
+        },
+        events: this.events
+      };
+      
+      await fs.promises.writeFile(outPath, JSON.stringify(eventsData, null, 2));
+      console.log('[EVENT RECORDER] Wrote events to:', outPath, 'with player:', this.activePlayerName);
     }
   }
 

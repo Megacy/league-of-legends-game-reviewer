@@ -35,6 +35,7 @@ export interface VideoSettings {
 
 export interface TimelineSettings {
   visibleEventTypes?: string[];
+  showOnlyMyKDA?: boolean;
 }
 
 declare global {
@@ -42,8 +43,9 @@ declare global {
     startRecording: (settings?: VideoSettings) => Promise<{ ok: boolean; error?: string; fileBase?: string }>;
     stopRecording: () => Promise<{ ok: boolean; error?: string }>;
     setAutoRecord: (enabled: boolean) => Promise<boolean>;
-    getEventsForVideo: (fileBase: string) => Promise<EventData[]>;
+    getEventsForVideo: (fileBase: string) => Promise<EventData[] | { events: EventData[]; activePlayerName?: string | null }>;
     testLeagueApi: () => Promise<unknown>;
+    getLeaguePlayerInfo: () => Promise<{ ok: boolean; playerName?: string; error?: string }>;
     getLatestRecording: () => Promise<string | null>;
     onLoadLatestRecording: (callback: () => void) => void;
     onRecordingStarted: (callback: () => void) => void;

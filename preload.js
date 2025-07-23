@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setAutoRecord: (enabled) => ipcRenderer.invoke('set-auto-record', enabled),
   getEventsForVideo: (fileBase) => ipcRenderer.invoke('get-events-for-video', fileBase),
   testLeagueApi: () => ipcRenderer.invoke('test-league-api'),
+  getLeaguePlayerInfo: () => ipcRenderer.invoke('get-league-player-info'),
   getLatestRecording: () => ipcRenderer.invoke('get-latest-recording'),
   onLoadLatestRecording: (callback) => ipcRenderer.on('load-latest-recording', callback),
   onRecordingStarted: (callback) => ipcRenderer.on('recording-started', callback),
