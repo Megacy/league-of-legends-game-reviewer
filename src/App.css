@@ -200,10 +200,10 @@ body, html, #root, .main-app-bg {
   width: 24px;
   height: 24px;
   z-index: 1;
-  transform: none; /* Remove transform to prevent positioning issues */
+  /* transform will be set inline to center the icon on its position */
 }
 .timeline-event-icon:hover {
-  transform: scale(1.2);
+  transform: translateX(-50%) scale(1.2);
   z-index: 2;
 }
 .timeline-current-time-indicator {
