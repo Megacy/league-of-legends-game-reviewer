@@ -12,6 +12,7 @@
     "electron:build": "electron-builder",
     "electron:publish": "electron-builder --publish=always",
     "build:prod": "npm run build && npm run electron:build",
+    "build:optimized": "./build-optimized.sh",
     "release": "npm run build && npm run electron:publish",
     "test-update-server": "node dev-update-server.js",
     "version:patch": "./release.sh patch",
@@ -60,6 +61,9 @@
         "repo": "league-of-legends-game-reviewer"
       }
     ],
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "buildDependenciesFromSource": false,
     "mac": {
       "target": [
         "dmg",
@@ -88,7 +92,6 @@
     },
     "files": [
       "dist/**",
-      "dist/assets/**",
       "electron-main.js",
       "preload.js",
       "package.json",

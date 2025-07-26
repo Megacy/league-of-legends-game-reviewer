@@ -26,10 +26,16 @@ jobs:
     - name: Install dependencies
       run: npm ci
       
+    - name: Build frontend
+      run: npm run build
+      
+    - name: Install production dependencies only
+      run: npm ci --omit=dev
+      
     - name: Build and publish
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: npm run release
+      run: npm run electron:publish
       
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
