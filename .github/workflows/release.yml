@@ -35,10 +35,20 @@ jobs:
     - name: Install electron-builder temporarily
       run: npm install electron-builder@26.0.12 --no-save
       
-    - name: Build and publish
+    - name: Build Electron app
+      run: npx electron-builder
+      
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          dist/Movlex-League-Recorder-*-arm64.dmg
+          dist/Movlex-League-Recorder-*-arm64-mac.zip
+        generate_release_notes: true
+        draft: false
+        prerelease: false
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: npx electron-builder --publish=always
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
