@@ -32,10 +32,13 @@ jobs:
     - name: Install production dependencies only
       run: npm ci --omit=dev
       
+    - name: Install electron-builder temporarily
+      run: npm install electron-builder@26.0.12 --no-save
+      
     - name: Build and publish
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: npm run electron:publish
+      run: npx electron-builder --publish=always
       
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
