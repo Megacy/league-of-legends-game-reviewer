@@ -288,6 +288,7 @@ function App() {
         onManualStop={handleManualStop}
         onSetDirectory={handleSetDirectory}
         recordingsDirectory={recordingsDirectory}
+        onCheckUpdates={() => window.electronAPI?.checkForUpdates?.()}
       />
 
       <VideoSettingsModal

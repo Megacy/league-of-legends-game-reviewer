@@ -12,7 +12,6 @@ interface UpdateNotificationProps {
 
 export const UpdateNotification: React.FC<UpdateNotificationProps> = ({ onClose }) => {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
   const [currentVersion, setCurrentVersion] = useState<string>('');
 
@@ -26,24 +25,6 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({ onClose 
     });
   }, []);
 
-  const checkForUpdates = async () => {
-    setIsCheckingUpdate(true);
-    try {
-      const result = await window.electronAPI.checkForUpdates();
-      if (result.available && result.updateInfo) {
-        setUpdateInfo(result.updateInfo);
-      } else {
-        // Show temporary message if no updates
-        setTimeout(() => {
-          setIsCheckingUpdate(false);
-        }, 1000);
-      }
-    } catch (error) {
-      console.error('Failed to check for updates:', error);
-      setIsCheckingUpdate(false);
-    }
-  };
-
   const installUpdate = async () => {
     setIsInstalling(true);
     try {
@@ -55,10 +36,19 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({ onClose 
     }
   };
 
-  if (updateInfo && !isInstalling) {
-    return (
-      <div className="update-notification">
-        <div className="update-modal">
+  const handleClose = () => {
+    setUpdateInfo(null);
+    onClose?.();
+  };
+
+  // Only render the modal if there's an update available
+  if (!updateInfo) {
+    return null;
+  }
+
+  return (
+    <div className="update-notification">
+      <div className="update-modal">
           <div className="update-header">
             <h3>🎉 Update Available!</h3>
             <button className="close-btn" onClick={onClose}>×</button>
@@ -81,7 +71,7 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({ onClose 
           <div className="update-actions">
             <button 
               className="btn-secondary" 
-              onClick={onClose}
+              onClick={handleClose}
               disabled={isInstalling}
             >
               Later
@@ -97,19 +87,4 @@ export const UpdateNotification: React.FC<UpdateNotificationProps> = ({ onClose 
         </div>
       </div>
     );
-  }
-
-  return (
-    <div className="update-checker">
-      <button 
-        className="check-updates-btn"
-        onClick={checkForUpdates}
-        disabled={isCheckingUpdate}
-        title="Check for app updates"
-      >
-        {isCheckingUpdate ? '🔄' : '⬇️'} 
-        {isCheckingUpdate ? ' Checking...' : ' Check Updates'}
-      </button>
-    </div>
-  );
 };

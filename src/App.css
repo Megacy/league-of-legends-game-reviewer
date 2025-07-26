@@ -623,31 +623,3 @@ body, html, #root, .main-app-bg {
   background: rgba(255, 255, 255, 0.1);
   border-color: #888;
 }
-
-.update-checker {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 1000;
-}
-
-.check-updates-btn {
-  background: #2a2f3a;
-  border: 1px solid #3f4758;
-  color: #e0e0e0;
-  padding: 8px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.2s;
-}
-
-.check-updates-btn:hover:not(:disabled) {
-  background: #3f4758;
-  border-color: #4CAF50;
-}
-
-.check-updates-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}

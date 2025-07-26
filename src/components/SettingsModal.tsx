@@ -11,6 +11,7 @@ interface SettingsModalProps {
   onManualStop: () => void;
   onSetDirectory: () => void;
   recordingsDirectory: string;
+  onCheckUpdates?: () => void;
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -23,6 +24,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   onManualStop,
   onSetDirectory,
   recordingsDirectory,
+  onCheckUpdates,
 }) => {
   const handleAutoRecordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onAutoRecordChange(e.target.checked);
@@ -72,6 +74,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       }}>
         Current: {recordingsDirectory}
       </div>
+      
+      {onCheckUpdates && (
+        <button 
+          onClick={onCheckUpdates} 
+          style={{ width: '100%', marginBottom: 8 }}
+        >
+          Check for Updates
+        </button>
+      )}
       
       <button 
         style={{ width: '100%' }} 
