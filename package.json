@@ -12,7 +12,11 @@
     "electron:build": "electron-builder",
     "electron:publish": "electron-builder --publish=always",
     "build:prod": "npm run build && npm run electron:build",
-    "release": "npm run build && npm run electron:publish"
+    "release": "npm run build && npm run electron:publish",
+    "test-update-server": "node dev-update-server.js",
+    "version:patch": "./release.sh patch",
+    "version:minor": "./release.sh minor", 
+    "version:major": "./release.sh major"
   },
   "dependencies": {
     "electron-updater": "^6.6.2",
