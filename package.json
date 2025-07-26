@@ -54,6 +54,14 @@
     "directories": {
       "buildResources": "build"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Megacy",
+        "repo": "league-of-legends-game-reviewer",
+        "private": true
+      }
+    ],
     "npmRebuild": false,
     "nodeGypRebuild": false,
     "buildDependenciesFromSource": false,
