@@ -351,10 +351,9 @@ export function groupEvents(events: EventData[], visibleTypes: string[], showOnl
   console.log('[Timeline] Grouping', sortedEvents.length, 'events with gameTimeOffset:', gameTimeOffset.toFixed(3), 's');
   
   for (const event of sortedEvents) {
-    // Convert game time to video time by subtracting the offset
-    // If offset is negative (loading time), this effectively adds time to position events later in video
-    // If offset is positive, this subtracts time to position events earlier in video
-    const videoTime = Math.max(0, event.EventTime - gameTimeOffset);
+    // Convert game time to video time by adding the loading time offset
+    // The offset represents the loading screen duration that happens before game events
+    const videoTime = Math.max(0, event.EventTime + gameTimeOffset);
     
     if (sortedEvents.indexOf(event) < 3) { // Log first few events for debugging
       console.log(`[Timeline] Event ${event.EventName} at game time ${event.EventTime.toFixed(1)}s -> video time ${videoTime.toFixed(1)}s`);
