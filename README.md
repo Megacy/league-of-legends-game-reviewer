@@ -30,6 +30,30 @@ A modern desktop app for reviewing League of Legends games, built with Electron,
   - WebSocket password (if configured in OBS)
   - Scene to switch to when recording (optional)
 
+## Installation
+
+### Download
+Download the latest release from the [Releases page](https://github.com/Megacy/league-of-legends-game-reviewer/releases).
+
+### macOS Installation
+⚠️ **Important**: Due to macOS security restrictions, you may see an error that the app is "damaged and can't be opened." This is normal for unsigned apps.
+
+**Quick Fix:**
+```bash
+# After installing the app to /Applications, run:
+sudo xattr -rd com.apple.quarantine "/Applications/Movlex-League-Recorder.app"
+```
+
+**Alternative**: Use the included fix script:
+```bash
+# Download and run the fix script
+curl -O https://raw.githubusercontent.com/Megacy/league-of-legends-game-reviewer/main/scripts/fix-macos-quarantine.sh
+chmod +x fix-macos-quarantine.sh
+./fix-macos-quarantine.sh
+```
+
+For detailed installation instructions, see [MACOS-INSTALL.md](MACOS-INSTALL.md).
+
 ## Getting Started
 1. Install dependencies:
    ```sh
