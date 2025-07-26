@@ -36,6 +36,7 @@ export interface VideoSettings {
 export interface TimelineSettings {
   visibleEventTypes?: string[];
   showOnlyMyKDA?: boolean;
+  manualTimingOffset?: number; // Manual offset in seconds to adjust event timing
 }
 
 declare global {

@@ -1,24 +1,14 @@
 import { useRef, useState, useEffect } from 'react';
 import './App.css';
 import type { EventData, TimelineSettings } from './types/electron-api';
-
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  ChampionKill: 'Kill',
-  ChampionSpecialKill: 'Special Kill',
-  FirstBlood: 'First Blood',
-  TurretKilled: 'Tower',
-  InhibKilled: 'Inhibitor',
-  DragonKill: 'Dragon',
-  BaronKill: 'Baron',
-  HeraldKill: 'Herald',
-  Multikill: 'Multikill',
-  Ace: 'Ace',
-  // ...add more as needed
-};
-
-const DEFAULT_VISIBLE = [
-  'ChampionKill', 'TurretKilled', 'DragonKill', 'BaronKill', 'FirstBlood', 'Ace', 'InhibKilled', 'HeraldKill', 'Multikill',
-];
+import { 
+  calculateGameTimeOffset, 
+  groupEvents, 
+  DEFAULT_VISIBLE,
+  EVENT_TYPE_LABELS,
+  type GroupedEvent 
+} from './components/TimelineUtils';
+import { ChampionKillTooltip, CustomEventTooltip } from './components/TimelineTooltips';
 
 // Helper function to get player name from League Live Client API
 async function getPlayerNameFromLeague(): Promise<string | null> {
@@ -40,137 +30,13 @@ async function getPlayerNameFromLeague(): Promise<string | null> {
   }
 }
 
-// Helper function to check if an event is related to player's KDA
-function isPlayerKDAEvent(event: EventData, playerName: string): boolean {
-  if (!playerName || event.EventName !== 'ChampionKill') return false;
-  
-  // Player got a kill
-  if (event.KillerName === playerName) return true;
-  
-  // Player died
-  if (event.VictimName === playerName) return true;
-  
-  // Player got an assist
-  if (event.Assisters && event.Assisters.includes(playerName)) return true;
-  
-  return false;
-}
 
-// Helper function to get icon for KDA events
-function getKDAIcon(event: EventData, playerName: string): string {
-  if (event.VictimName === playerName) {
-    return '💀'; // Death (skull icon)
-  } else if (event.KillerName === playerName) {
-    return '⚔️'; // Kill
-  } else if (event.Assisters && event.Assisters.includes(playerName)) {
-    return '🤝'; // Assist
-  }
-  return '⚔️'; // Default
-}
 
-// Helper function to group events within 10 seconds
-interface GroupedEvent {
-  eventType: string;
-  events: EventData[];
-  startTime: number;
-  count: number;
-  icon: string;
-}
-
-function groupEvents(events: EventData[], visibleTypes: string[], showOnlyMyKDA: boolean = false, playerName: string = ''): GroupedEvent[] {
-  let filteredEvents = events.filter(e => visibleTypes.includes(e.EventName));
-  
-  // Additional filtering for KDA events if enabled
-  if (showOnlyMyKDA && playerName) {
-    filteredEvents = filteredEvents.filter(e => isPlayerKDAEvent(e, playerName));
-  }
-  
-  const groups: GroupedEvent[] = [];
-  const groupWindow = 20; // 20 seconds grouping window
-  
-  // Sort events by time
-  const sortedEvents = [...filteredEvents].sort((a, b) => a.EventTime - b.EventTime);
-  
-  for (const event of sortedEvents) {
-    // Try to find an existing group for this event type within the time window
-    const existingGroup = groups.find(group => 
-      group.eventType === event.EventName && 
-      Math.abs(event.EventTime - group.startTime) <= groupWindow
-    );
-    
-    if (existingGroup) {
-      // Add to existing group
-      existingGroup.events.push(event);
-      existingGroup.count = existingGroup.events.length;
-      // Update start time to be the earliest in the group
-      existingGroup.startTime = Math.min(existingGroup.startTime, event.EventTime);
-    } else {
-      // Create new group
-      let icon = '⚔️';
-      
-      // Use KDA-specific icons if in KDA mode
-      if (showOnlyMyKDA && playerName && event.EventName === 'ChampionKill') {
-        icon = getKDAIcon(event, playerName);
-      } else {
-        // Default icon mapping
-        if (event.EventName === 'ChampionKill') icon = '⚔️';
-        else if (event.EventName === 'TurretKilled') icon = '🏰';
-        else if (event.EventName === 'DragonKill') icon = '🐉';
-        else if (event.EventName === 'BaronKill') icon = '👹';
-        else if (event.EventName === 'FirstBlood') icon = '🩸';
-        else if (event.EventName === 'Ace') icon = '⭐';
-        else if (event.EventName === 'InhibKilled') icon = '💎';
-        else if (event.EventName === 'HeraldKill') icon = '🐚';
-        else if (event.EventName === 'Multikill') icon = '🔥';
-        else if (event.EventName === 'AtakhanKill') icon = '🦎';
-      }
-      
-      groups.push({
-        eventType: event.EventName,
-        events: [event],
-        startTime: event.EventTime,
-        count: 1,
-        icon
-      });
-    }
-  }
-  
-  return groups.sort((a, b) => a.startTime - b.startTime);
-}
-
-// Helper function to generate enhanced tooltips for grouped events
-function generateTooltip(group: GroupedEvent): string {
-  const baseText = `${group.count > 1 ? `${group.count}x ` : ''}${EVENT_TYPE_LABELS[group.eventType] || group.eventType} @ ${group.startTime.toFixed(1)}s`;
-  
-  // For ChampionKill events, show champion vs champion details
-  if (group.eventType === 'ChampionKill' && group.events.length > 0) {
-    const killDetails = group.events.map(event => {
-      if (event.KillerChampion && event.VictimChampion) {
-        let killText = `${event.KillerChampion} killed ${event.VictimChampion}`;
-        if (event.AssisterChampions && event.AssisterChampions.length > 0) {
-          killText += ` (assisted by ${event.AssisterChampions.join(', ')})`;
-        }
-        return killText;
-      } else if (event.KillerName && event.VictimName) {
-        // Fallback to summoner names if champion names not available
-        let killText = `${event.KillerName} killed ${event.VictimName}`;
-        if (event.Assisters && event.Assisters.length > 0) {
-          killText += ` (assisted by ${event.Assisters.join(', ')})`;
-        }
-        return killText;
-      }
-      return `Kill @ ${event.EventTime.toFixed(1)}s`;
-    }).join('\n');
-    
-    return `${baseText}\n${killDetails}`;
-  }
-  
-  return baseText;
-}
 
 export default function VideoReview({ setCurrentFilename, latestFile }: { setCurrentFilename?: (filename: string) => void, latestFile?: string | null }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [events, setEvents] = useState<EventData[]>([]);
+  const [eventsMetadata, setEventsMetadata] = useState<{ recordingStartTime?: number; activePlayerName?: string } | null>(null);
   const [videoUrl, setVideoUrl] = useState('');
   const [fileBase, setFileBase] = useState('');
   const [visibleTypes, setVisibleTypes] = useState<string[]>(DEFAULT_VISIBLE);
@@ -179,6 +45,29 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
   const [showOnlyMyKDA, setShowOnlyMyKDA] = useState(false);
   const [playerName, setPlayerName] = useState<string>('');
   const [playerNameSource, setPlayerNameSource] = useState<'stored' | 'live' | null>(null);
+  const [manualTimingOffset, setManualTimingOffset] = useState<number>(0);
+
+  // Dialog section collapse state
+  const [kdaFilterExpanded, setKdaFilterExpanded] = useState(false);
+  const [timingAdjustmentExpanded, setTimingAdjustmentExpanded] = useState(false);
+  const [eventTypesExpanded, setEventTypesExpanded] = useState(false);
+
+  // Custom tooltip state
+  const [tooltipData, setTooltipData] = useState<{ 
+    visible: boolean; 
+    x: number; 
+    y: number; 
+    group: GroupedEvent | null;
+    showKDA: boolean;
+    playerName: string;
+  }>({
+    visible: false,
+    x: 0,
+    y: 0,
+    group: null,
+    showKDA: false,
+    playerName: ''
+  });
 
   // --- Clip selection state ---
   const [clipMode, setClipMode] = useState(false);
@@ -201,6 +90,9 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
         }
         if (settings.showOnlyMyKDA !== undefined) {
           setShowOnlyMyKDA(settings.showOnlyMyKDA);
+        }
+        if (settings.manualTimingOffset !== undefined) {
+          setManualTimingOffset(settings.manualTimingOffset);
         }
       }).catch(err => {
         console.warn('[VideoReview] Could not load timeline settings:', err);
@@ -248,13 +140,14 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
     if (window.electronAPI?.setTimelineSettings) {
       const settings: TimelineSettings = {
         visibleEventTypes: visibleTypes,
-        showOnlyMyKDA: showOnlyMyKDA
+        showOnlyMyKDA: showOnlyMyKDA,
+        manualTimingOffset: manualTimingOffset
       };
       window.electronAPI.setTimelineSettings(settings).catch(err => {
         console.warn('[VideoReview] Could not save timeline settings:', err);
       });
     }
-  }, [visibleTypes, showOnlyMyKDA]);
+  }, [visibleTypes, showOnlyMyKDA, manualTimingOffset]);
   
   useEffect(() => {
     const video = videoRef.current;
@@ -340,6 +233,7 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
         // Handle both old format (array) and new format (object with metadata)
         let events: EventData[];
         let storedPlayerName: string | null;
+        let metadata = null;
         if (Array.isArray(loaded)) {
           // Old format - just events array
           events = loaded;
@@ -348,6 +242,7 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
           // New format with metadata
           events = loaded.events;
           storedPlayerName = loaded.activePlayerName || null;
+          metadata = (loaded as { metadata?: { recordingStartTime?: number; activePlayerName?: string } }).metadata || null;
         } else {
           events = [];
           storedPlayerName = null;
@@ -358,6 +253,7 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
           : [];
         console.log('[VideoReview] Setting events state:', normalized);
         setEvents(normalized);
+        setEventsMetadata(metadata);
         
         // Use stored player name if available, otherwise detect
         if (storedPlayerName) {
@@ -480,7 +376,13 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
               </>
             )}
             {/* Timeline settings cog, always shown */}
-            <span className="timeline-cog" title="Filter event types" onClick={() => setShowDialog(true)} style={{ marginLeft: 16 }}>
+            <span className="timeline-cog" title="Filter event types" onClick={() => {
+              setShowDialog(true);
+              // Auto-expand sections with active settings
+              setKdaFilterExpanded(showOnlyMyKDA);
+              setTimingAdjustmentExpanded(manualTimingOffset !== 0);
+              setEventTypesExpanded(false); // Keep collapsed by default
+            }} style={{ marginLeft: 16 }}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#232946" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09A1.65 1.65 0 0 0 12 3.6V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09c.2.63.2 1.3 0 1.93z"/></svg>
             </span>
           </div>
@@ -542,23 +444,29 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
               )}
               {/* Render event icons on timeline */}
               {(() => {
-                const groupedEvents = groupEvents(events, visibleTypes, showOnlyMyKDA, playerName);
-                console.log('[Timeline] Total events:', events.length, 'Grouped events:', groupedEvents.length, 'Visible types:', visibleTypes, 'KDA mode:', showOnlyMyKDA);
+                // Use manual offset if provided, otherwise calculate automatically
+                const gameTimeOffset = manualTimingOffset !== 0 ? manualTimingOffset : calculateGameTimeOffset(events, eventsMetadata || undefined);
+                const groupedEvents = groupEvents(events, visibleTypes, showOnlyMyKDA, playerName, gameTimeOffset, eventsMetadata || undefined);
+                console.log('[Timeline] Total events:', events.length, 'Grouped events:', groupedEvents.length, 'Visible types:', visibleTypes, 'KDA mode:', showOnlyMyKDA, 'Game time offset:', gameTimeOffset, 'Manual offset:', manualTimingOffset);
                 return groupedEvents.map((group, idx) => {
                   const duration = videoDuration || videoRef.current?.duration || 1;
                   // Show icon at the actual event time
                   const iconTime = group.startTime;
-                  // Constrain to 0-92% to prevent overflow (leaving room for icon width)
-                  const leftPercent = Math.min(92, Math.max(0, (iconTime / duration) * 100));
+                  // Position icon at the exact event time percentage
+                  const leftPercent = Math.max(0, Math.min(100, (iconTime / duration) * 100));
                   const left = `${leftPercent}%`;
                   
-                  // Debug logging
-                  if (idx === 0) {
-                    console.log('[Timeline] Rendering grouped events:', groupedEvents.length, 'duration:', duration, 'first group time:', group.startTime, 'left:', left);
+                  // Debug logging for timing issues
+                  if(idx < 3 || idx >= groupedEvents.length - 3) {
+                    console.log(`[Timeline Debug] Event ${idx}:`, {
+                      eventType: group.eventType,
+                      originalTime: group.events[0]?.EventTime,
+                      adjustedTime: group.startTime,
+                      videoDuration: duration,
+                      leftPercent,
+                      gameTimeOffset
+                    });
                   }
-                  
-                  // Make icons non-clickable when in KDA mode
-                  const isClickable = !showOnlyMyKDA && !clipMode;
                   
                 return (
                   <span
@@ -566,15 +474,34 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
                     className="timeline-event-icon"
                     style={{
                       left,
+                      transform: 'translateX(-50%)', // Center icon on its position
                       opacity: clipMode ? 0.5 : 1,
-                      cursor: isClickable ? 'pointer' : 'default',
-                      pointerEvents: isClickable ? 'auto' : 'none',
+                      cursor: 'default', // Always default cursor
+                      pointerEvents: 'auto', // Allow hover events for tooltips
                     }}
-                    title={generateTooltip(group)}
+                    onMouseEnter={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setTooltipData({
+                        visible: true,
+                        x: rect.left + rect.width / 2,
+                        y: rect.top,
+                        group,
+                        showKDA: showOnlyMyKDA,
+                        playerName
+                      });
+                    }}
+                    onMouseLeave={() => {
+                      setTooltipData(prev => ({ ...prev, visible: false }));
+                    }}
                     onClick={e => {
-                      if (!isClickable) return;
+                      // Stop event propagation to prevent timeline click handler from running
+                      // with incorrect click position, but still allow seeking to this event's time
+                      e.preventDefault();
                       e.stopPropagation();
-                      if (videoRef.current) videoRef.current.currentTime = group.startTime;
+                      if (videoRef.current) {
+                        videoRef.current.currentTime = group.startTime;
+                        setCurrentTime(group.startTime); // Update state immediately
+                      }
                     }}
                   >
                     {group.icon}
@@ -616,76 +543,212 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
             </div>
             <div style={{ marginTop: 8, textAlign: 'center', color: '#aaa', fontSize: 14 }}>
               {showOnlyMyKDA 
-                ? "Timeline shows only your kills, deaths, and assists. Icons are not clickable in KDA mode."
-                : "Click anywhere on the timeline or on an event icon to jump to that part of the video."
+                ? "Timeline shows only your kills, deaths, and assists. Hover over icons for details, click anywhere on timeline to seek."
+                : "Hover over event icons for details. Click anywhere on the timeline to jump to that part of the video."
               }
+              {events.length > 0 && (
+                <div style={{ fontSize: 12, marginTop: 4, opacity: 0.7 }}>
+                  {manualTimingOffset !== 0 ? (
+                    <>Manual timing offset: {manualTimingOffset.toFixed(2)}s</>
+                  ) : (
+                    <>Auto timing offset: {calculateGameTimeOffset(events, eventsMetadata || undefined).toFixed(2)}s 
+                    {calculateGameTimeOffset(events, eventsMetadata || undefined) < 0 ? ' (adding loading time)' : ' (subtracting from game time)'}</>
+                  )}
+                </div>
+              )}
             </div>
             {showDialog && (
               <div style={{
                 position: 'fixed', left: 0, top: 0, width: '100vw', height: '100vh',
                 background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
               }} onClick={() => setShowDialog(false)}>
-                <div style={{ background: '#232946', color: '#fff', padding: 24, borderRadius: 8, minWidth: 300, textAlign: 'left', boxShadow: '0 4px 24px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+                <div style={{ background: '#232946', color: '#fff', padding: 24, borderRadius: 8, minWidth: 280, maxWidth: 400, textAlign: 'left', boxShadow: '0 4px 24px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
                   <h3 style={{ color: '#fff', marginTop: 0, marginBottom: 16 }}>Timeline Settings</h3>
                   
-                  {/* KDA Filter Toggle */}
-                  <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #444' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', fontWeight: 500, color: '#fff', cursor: 'pointer', marginBottom: 12 }}>
-                      <input
-                        type="checkbox"
-                        checked={showOnlyMyKDA}
-                        onChange={(e) => setShowOnlyMyKDA(e.target.checked)}
-                        style={{ marginRight: 8 }}
-                      />
-                      Show only my KDA (Kills, Deaths, Assists)
-                    </label>
-                    
-                    {/* Show detected player name */}
-                    {playerName ? (
-                      <div style={{ marginLeft: 20, marginBottom: 8 }}>
-                        <div style={{ fontSize: 12, color: '#aaa', marginBottom: 4 }}>
-                          Detected Player: <span style={{ color: '#4caf50', fontWeight: 'bold' }}>{playerName}</span>
-                        </div>
-                        <div style={{ fontSize: 11, color: '#666' }}>
-                          {playerNameSource === 'stored' 
-                            ? 'Stored from recording session' 
-                            : 'Detected from League Live Client API'
-                          }
-                        </div>
-                      </div>
-                    ) : showOnlyMyKDA && (
-                      <div style={{ marginLeft: 20, marginBottom: 8 }}>
-                        <div style={{ fontSize: 12, color: '#ff6b35' }}>
-                          No player detected. Make sure League of Legends is running.
-                        </div>
-                      </div>
-                    )}
-                    
-                    {showOnlyMyKDA && (
-                      <div style={{ fontSize: 12, color: '#aaa', marginTop: 4, marginLeft: 20 }}>
-                        💀 = Death, ⚔️ = Kill, 🤝 = Assist
+                  {/* KDA Filter Section - Collapsible */}
+                  <div style={{ marginBottom: 12 }}>
+                    <div 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        cursor: 'pointer', 
+                        padding: '8px 0',
+                        borderBottom: kdaFilterExpanded ? 'none' : '1px solid #444'
+                      }}
+                      onClick={() => setKdaFilterExpanded(!kdaFilterExpanded)}
+                    >
+                      <span style={{ marginRight: 8, transform: kdaFilterExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>▶</span>
+                      <span style={{ fontWeight: 500, color: '#fff' }}>KDA Filter</span>
+                      {showOnlyMyKDA && (
+                        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#4caf50', background: 'rgba(76,175,80,0.2)', padding: '2px 6px', borderRadius: 3 }}>
+                          ON
+                        </span>
+                      )}
+                    </div>
+                    {kdaFilterExpanded && (
+                      <div style={{ 
+                        paddingLeft: 20, 
+                        paddingBottom: 16, 
+                        borderBottom: '1px solid #444',
+                        background: 'rgba(0,0,0,0.1)',
+                        borderRadius: '0 0 4px 4px'
+                      }}>
+                        <label style={{ display: 'flex', alignItems: 'center', fontWeight: 500, color: '#fff', cursor: 'pointer', marginBottom: 12, marginTop: 12 }}>
+                          <input
+                            type="checkbox"
+                            checked={showOnlyMyKDA}
+                            onChange={(e) => setShowOnlyMyKDA(e.target.checked)}
+                            style={{ marginRight: 8 }}
+                          />
+                          Show only my KDA (Kills, Deaths, Assists)
+                        </label>
+                        
+                        {/* Show detected player name */}
+                        {playerName ? (
+                          <div style={{ marginBottom: 8 }}>
+                            <div style={{ fontSize: 12, color: '#aaa', marginBottom: 4 }}>
+                              Detected Player: <span style={{ color: '#4caf50', fontWeight: 'bold' }}>{playerName}</span>
+                            </div>
+                            <div style={{ fontSize: 11, color: '#666' }}>
+                              {playerNameSource === 'stored' 
+                                ? 'Stored from recording session' 
+                                : 'Detected from League Live Client API'
+                              }
+                            </div>
+                          </div>
+                        ) : showOnlyMyKDA && (
+                          <div style={{ marginBottom: 8 }}>
+                            <div style={{ fontSize: 12, color: '#ff6b35' }}>
+                              No player detected. Make sure League of Legends is running.
+                            </div>
+                          </div>
+                        )}
+                        
+                        {showOnlyMyKDA && (
+                          <div style={{ fontSize: 12, color: '#aaa', marginTop: 4 }}>
+                            💀 = Death, ⚔️ = Kill, 🤝 = Assist
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                   
-                  {/* Event Type Filters */}
-                  <h4 style={{ color: '#fff', marginBottom: 12, fontSize: 16 }}>Show Event Types</h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {typesToShow.map(type => (
-                      <label key={type} style={{ display: 'flex', alignItems: 'center', fontWeight: 500, color: '#fff' }}>
-                        <input
-                          type="checkbox"
-                          checked={visibleTypes.includes(type)}
-                          onChange={() => handleTypeToggle(type)}
-                          style={{ marginRight: 8 }}
-                          disabled={showOnlyMyKDA && type !== 'ChampionKill'}
-                        />
-                        <span style={{ opacity: showOnlyMyKDA && type !== 'ChampionKill' ? 0.5 : 1 }}>
-                          {EVENT_TYPE_LABELS[type] || type}
+                  {/* Timing Adjustment Section - Collapsible */}
+                  <div style={{ marginBottom: 12 }}>
+                    <div 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        cursor: 'pointer', 
+                        padding: '8px 0',
+                        borderBottom: timingAdjustmentExpanded ? 'none' : '1px solid #444'
+                      }}
+                      onClick={() => setTimingAdjustmentExpanded(!timingAdjustmentExpanded)}
+                    >
+                      <span style={{ marginRight: 8, transform: timingAdjustmentExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>▶</span>
+                      <span style={{ fontWeight: 500, color: '#fff' }}>Timing Adjustment</span>
+                      {manualTimingOffset !== 0 && (
+                        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#4caf50', background: 'rgba(76,175,80,0.2)', padding: '2px 6px', borderRadius: 3 }}>
+                          {manualTimingOffset > 0 ? '+' : ''}{manualTimingOffset}s
                         </span>
-                      </label>
-                    ))}
+                      )}
+                    </div>
+                    {timingAdjustmentExpanded && (
+                      <div style={{ 
+                        paddingLeft: 20, 
+                        paddingBottom: 16, 
+                        borderBottom: '1px solid #444',
+                        background: 'rgba(0,0,0,0.1)',
+                        borderRadius: '0 0 4px 4px'
+                      }}>
+                        <div style={{ fontSize: 13, color: '#aaa', marginBottom: 12, marginTop: 12 }}>
+                          Fine-tune event timing if icons don't align with video actions. Negative values add time (for loading screen), positive values subtract time.
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <label style={{ color: '#fff', fontSize: 14 }}>Manual Offset:</label>
+                          <input
+                            type="number"
+                            value={manualTimingOffset}
+                            onChange={(e) => setManualTimingOffset(parseFloat(e.target.value) || 0)}
+                            step="1"
+                            style={{
+                              background: '#444',
+                              border: '1px solid #666',
+                              color: '#fff',
+                              padding: '4px 8px',
+                              borderRadius: 4,
+                              width: '80px'
+                            }}
+                          />
+                          <span style={{ color: '#aaa', fontSize: 12 }}>seconds</span>
+                          {manualTimingOffset !== 0 && (
+                            <button
+                              onClick={() => setManualTimingOffset(0)}
+                              style={{
+                                background: '#666',
+                                border: 'none',
+                                color: '#fff',
+                                padding: '4px 8px',
+                                borderRadius: 4,
+                                fontSize: 12,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Reset
+                            </button>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#666', marginTop: 8 }}>
+                          Current: {manualTimingOffset !== 0 ? `Manual (${manualTimingOffset}s)` : `Auto (${calculateGameTimeOffset(events, eventsMetadata || undefined).toFixed(1)}s)`}
+                        </div>
+                      </div>
+                    )}
                   </div>
+                  
+                  {/* Event Types Section - Collapsible */}
+                  <div style={{ marginBottom: 12 }}>
+                    <div 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        cursor: 'pointer', 
+                        padding: '8px 0',
+                        borderBottom: eventTypesExpanded ? 'none' : '1px solid #444'
+                      }}
+                      onClick={() => setEventTypesExpanded(!eventTypesExpanded)}
+                    >
+                      <span style={{ marginRight: 8, transform: eventTypesExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>▶</span>
+                      <span style={{ fontWeight: 500, color: '#fff' }}>Show Event Types</span>
+                      <span style={{ marginLeft: 'auto', fontSize: 12, color: '#aaa' }}>({visibleTypes.length}/{typesToShow.length})</span>
+                    </div>
+                    {eventTypesExpanded && (
+                      <div style={{ 
+                        paddingLeft: 20, 
+                        paddingBottom: 16, 
+                        borderBottom: '1px solid #444',
+                        background: 'rgba(0,0,0,0.1)',
+                        borderRadius: '0 0 4px 4px'
+                      }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                          {typesToShow.map(type => (
+                            <label key={type} style={{ display: 'flex', alignItems: 'center', fontWeight: 500, color: '#fff' }}>
+                              <input
+                                type="checkbox"
+                                checked={visibleTypes.includes(type)}
+                                onChange={() => handleTypeToggle(type)}
+                                style={{ marginRight: 8 }}
+                                disabled={showOnlyMyKDA && type !== 'ChampionKill'}
+                              />
+                              <span style={{ opacity: showOnlyMyKDA && type !== 'ChampionKill' ? 0.5 : 1 }}>
+                                {EVENT_TYPE_LABELS[type] || type}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
                   <button style={{ marginTop: 20, background: '#fff', color: '#232946', border: 'none', borderRadius: 6, padding: '8px 18px', fontWeight: 600, fontSize: 16, cursor: 'pointer' }} onClick={() => setShowDialog(false)}>Close</button>
                 </div>
               </div>
@@ -696,6 +759,27 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
               <span>{clipToast}</span>
               <button className="toast-close" onClick={() => setClipToast(null)}>&times;</button>
             </div>
+          )}
+          
+          {/* Custom Visual Tooltip */}
+          {tooltipData.visible && tooltipData.group && (
+            <>
+              {tooltipData.group.eventType === 'ChampionKill' ? (
+                <ChampionKillTooltip 
+                  group={tooltipData.group}
+                  showKDA={tooltipData.showKDA}
+                  playerName={tooltipData.playerName}
+                  x={tooltipData.x}
+                  y={tooltipData.y}
+                />
+              ) : (
+                <CustomEventTooltip 
+                  group={tooltipData.group}
+                  x={tooltipData.x}
+                  y={tooltipData.y}
+                />
+              )}
+            </>
           )}
         </>
       )}
