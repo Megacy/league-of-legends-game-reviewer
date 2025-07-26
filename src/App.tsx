@@ -14,6 +14,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showVideoSettings, setShowVideoSettings] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [updateToast, setUpdateToast] = useState<string | null>(null);
   
   // App state
   const [autoRecord, setAutoRecord] = useState(true);
@@ -40,6 +41,13 @@ function App() {
     // Check for updates on app startup
     if (window.electronAPI?.checkForUpdates) {
       window.electronAPI.checkForUpdates();
+    }
+
+    // Listen for update events
+    if (window.electronAPI?.onUpdateDownloaded) {
+      window.electronAPI.onUpdateDownloaded((_event, info) => {
+        setUpdateToast(`Update ${info.version} downloaded! Click to install and restart.`);
+      });
     }
   }, []);
 
@@ -288,7 +296,16 @@ function App() {
         onManualStop={handleManualStop}
         onSetDirectory={handleSetDirectory}
         recordingsDirectory={recordingsDirectory}
-        onCheckUpdates={() => window.electronAPI?.checkForUpdates?.()}
+        onCheckUpdates={async () => {
+          try {
+            const result = await window.electronAPI?.checkForUpdates?.();
+            if (result && !result.available) {
+              setUpdateToast('No updates available. You have the latest version!');
+            }
+          } catch (_error) {
+            setUpdateToast('Failed to check for updates. Please try again later.');
+          }
+        }}
       />
 
       <VideoSettingsModal
@@ -343,6 +360,12 @@ function App() {
       <Toast
         message={successToast}
         onClose={() => setSuccessToast(null)}
+        type="success"
+      />
+      
+      <Toast
+        message={updateToast}
+        onClose={() => setUpdateToast(null)}
         type="success"
       />
     </div>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
 
 interface SettingsModalProps {
@@ -26,6 +26,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   recordingsDirectory,
   onCheckUpdates,
 }) => {
+  const [appVersion, setAppVersion] = useState<string>('');
+
+  useEffect(() => {
+    // Get app version when modal opens
+    if (isOpen && window.electronAPI?.getAppVersion) {
+      window.electronAPI.getAppVersion().then(setAppVersion);
+    }
+  }, [isOpen]);
+
   const handleAutoRecordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onAutoRecordChange(e.target.checked);
   };
@@ -82,6 +91,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         >
           Check for Updates
         </button>
+      )}
+      
+      {appVersion && (
+        <div style={{ 
+          color: '#888', 
+          fontSize: 12, 
+          textAlign: 'center', 
+          marginBottom: 8,
+          paddingTop: 8,
+          borderTop: '1px solid #444' 
+        }}>
+          Version {appVersion}
+        </div>
       )}
       
       <button 
