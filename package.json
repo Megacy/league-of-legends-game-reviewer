@@ -15,8 +15,9 @@
     "release": "npm run build && npm run electron:publish",
     "test-update-server": "node dev-update-server.js",
     "version:patch": "./release.sh patch",
-    "version:minor": "./release.sh minor",
-    "version:major": "./release.sh major"
+    "version:minor": "./release.sh minor", 
+    "version:major": "./release.sh major",
+    "generate-icons": "electron-icon-builder --input=./icon-source.png --output=./build --flatten"
   },
   "dependencies": {
     "electron-updater": "^6.6.2",
@@ -33,6 +34,7 @@
     "@vitejs/plugin-react": "^4.6.0",
     "electron": "^37.2.1",
     "electron-builder": "^26.0.12",
+    "electron-icon-builder": "^2.0.1",
     "eslint": "^9.30.1",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
@@ -48,6 +50,9 @@
   "build": {
     "appId": "com.movlex.league-recorder",
     "productName": "Movlex-League-Recorder",
+    "directories": {
+      "buildResources": "build"
+    },
     "publish": [
       {
         "provider": "github",
