@@ -1,7 +1,7 @@
 {
   "name": "movlex-league-recorder",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,9 +10,12 @@
     "preview": "vite preview",
     "electron:dev": "NODE_ENV=development electron .",
     "electron:build": "electron-builder",
-    "build:prod": "npm run build && npm run electron:build"
+    "electron:publish": "electron-builder --publish=always",
+    "build:prod": "npm run build && npm run electron:build",
+    "release": "npm run build && npm run electron:publish"
   },
   "dependencies": {
+    "electron-updater": "^6.6.2",
     "ffmpeg-static": "^5.2.0",
     "node-fetch": "^3.3.2",
     "obs-websocket-js": "^5.0.6",
@@ -41,6 +44,13 @@
   "build": {
     "appId": "com.movlex.league-recorder",
     "productName": "Movlex-League-Recorder",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Megacy",
+        "repo": "league-of-legends-game-reviewer"
+      }
+    ],
     "mac": {
       "target": [
         "dmg",

@@ -39,6 +39,19 @@ export interface TimelineSettings {
   manualTimingOffset?: number; // Manual offset in seconds to adjust event timing
 }
 
+export interface UpdateInfo {
+  version: string;
+  releaseDate: string;
+  releaseNotes?: string;
+}
+
+export interface UpdateCheckResult {
+  available: boolean;
+  updateInfo?: UpdateInfo;
+  message?: string;
+  error?: string;
+}
+
 declare global {
   interface ElectronAPI {
     startRecording: (settings?: VideoSettings) => Promise<{ ok: boolean; error?: string; fileBase?: string }>;
@@ -73,6 +86,12 @@ declare global {
     testObsConnection: (address: string, password?: string) => Promise<{ ok: boolean; error?: string }>;
     getObsConnectionStatus: () => Promise<{ connected: boolean; recording?: boolean }>;
     getObsRecordingSettings: () => Promise<{ ok: boolean; settings?: any; error?: string }>;
+    
+    // Auto-updater methods
+    checkForUpdates: () => Promise<UpdateCheckResult>;
+    installUpdate: () => Promise<boolean>;
+    getAppVersion: () => Promise<string>;
+    onUpdateDownloaded: (callback: (event: any, updateInfo: UpdateInfo) => void) => void;
   }
   interface Window {
     electronAPI: ElectronAPI;

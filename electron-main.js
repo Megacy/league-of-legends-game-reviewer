@@ -1,5 +1,6 @@
 // Main process for Electron
 import { app, BrowserWindow, ipcMain, dialog, systemPreferences } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import EventRecorder from './eventRecorder.js';
@@ -893,10 +894,90 @@ ipcMain.handle('get-auto-record', async () => {
   return autoRecordEnabled;
 });
 
+// --- Auto-Updater IPC Handlers ---
+ipcMain.handle('check-for-updates', async () => {
+  if (isDev) {
+    logToFile('[AutoUpdater] Skipping update check in development mode');
+    return { available: false, message: 'Updates disabled in development' };
+  }
+  
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    logToFile('[AutoUpdater] Check for updates result: ' + JSON.stringify(result));
+    return { available: !!result, updateInfo: result?.updateInfo };
+  } catch (error) {
+    logToFile('[AutoUpdater] Check for updates error: ' + error.message);
+    return { available: false, error: error.message };
+  }
+});
+
+ipcMain.handle('install-update', async () => {
+  if (isDev) {
+    logToFile('[AutoUpdater] Skipping update install in development mode');
+    return false;
+  }
+  
+  try {
+    autoUpdater.quitAndInstall();
+    return true;
+  } catch (error) {
+    logToFile('[AutoUpdater] Install update error: ' + error.message);
+    return false;
+  }
+});
+
+ipcMain.handle('get-app-version', async () => {
+  return app.getVersion();
+});
+
 let leaguePoller = null;
+
+// --- Auto Updater Configuration ---
+function setupAutoUpdater() {
+  // Configure auto-updater
+  autoUpdater.checkForUpdatesAndNotify();
+  
+  // Log auto-updater events
+  autoUpdater.on('checking-for-update', () => {
+    logToFile('[AutoUpdater] Checking for update...');
+  });
+  
+  autoUpdater.on('update-available', (info) => {
+    logToFile('[AutoUpdater] Update available: ' + info.version);
+  });
+  
+  autoUpdater.on('update-not-available', (info) => {
+    logToFile('[AutoUpdater] Update not available: ' + info.version);
+  });
+  
+  autoUpdater.on('error', (err) => {
+    logToFile('[AutoUpdater] Error: ' + err);
+  });
+  
+  autoUpdater.on('download-progress', (progressObj) => {
+    let logMessage = '[AutoUpdater] Download speed: ' + progressObj.bytesPerSecond;
+    logMessage = logMessage + ' - Downloaded ' + progressObj.percent + '%';
+    logMessage = logMessage + ' (' + progressObj.transferred + '/' + progressObj.total + ')';
+    logToFile(logMessage);
+  });
+  
+  autoUpdater.on('update-downloaded', (info) => {
+    logToFile('[AutoUpdater] Update downloaded: ' + info.version);
+    // Show notification to user about available update
+    if (mainWindow) {
+      mainWindow.webContents.send('update-downloaded', info);
+    }
+  });
+}
 
 app.whenReady().then(() => {
   createWindow();
+  
+  // Initialize auto-updater (only in production)
+  if (!isDev) {
+    setupAutoUpdater();
+  }
+  
   // Start LeaguePoller for auto-recording
   leaguePoller = new LeaguePoller({
     pollInterval: 2000,

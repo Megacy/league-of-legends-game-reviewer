@@ -4,6 +4,7 @@ import Header from './components/Header';
 import SettingsModal from './components/SettingsModal';
 import VideoSettingsModal from './components/VideoSettingsModal';
 import Toast from './components/Toast';
+import { UpdateNotification } from './components/UpdateNotification';
 import { useVideoSettings } from './hooks/useVideoSettings';
 import { useOBS } from './hooks/useOBS';
 import './App.css';
@@ -34,6 +35,11 @@ function App() {
     if (window.electronAPI?.onRecordingStopped) {
       const handler = () => setIsRecording(false);
       window.electronAPI.onRecordingStopped(handler);
+    }
+
+    // Check for updates on app startup
+    if (window.electronAPI?.checkForUpdates) {
+      window.electronAPI.checkForUpdates();
     }
   }, []);
 
@@ -256,6 +262,8 @@ function App() {
 
   return (
     <div className="main-app-bg">
+      <UpdateNotification />
+      
       <Header
         currentFilename={currentFilename}
         isRecording={isRecording}

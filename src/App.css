@@ -503,3 +503,151 @@ body, html, #root, .main-app-bg {
   animation: blinker 1.2s infinite;
   box-shadow: 0 0 10px rgba(255, 0, 0, 0.6);
 }
+
+/* Update Notification Styles */
+.update-notification {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.update-modal {
+  background: #2a2f3a;
+  border-radius: 12px;
+  padding: 0;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  border: 1px solid #3f4758;
+}
+
+.update-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #3f4758;
+}
+
+.update-header h3 {
+  margin: 0;
+  color: #4CAF50;
+  font-size: 1.2em;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.update-content {
+  padding: 20px 24px;
+  text-align: left;
+}
+
+.update-content p {
+  margin: 8px 0;
+  color: #e0e0e0;
+}
+
+.release-notes {
+  margin-top: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  border-left: 3px solid #4CAF50;
+}
+
+.update-actions {
+  display: flex;
+  gap: 12px;
+  padding: 20px 24px;
+  border-top: 1px solid #3f4758;
+  justify-content: flex-end;
+}
+
+.btn-primary, .btn-secondary {
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.btn-primary {
+  background: #4CAF50;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #45a049;
+}
+
+.btn-primary:disabled {
+  background: #666;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: #ccc;
+  border: 1px solid #666;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: #888;
+}
+
+.update-checker {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+}
+
+.check-updates-btn {
+  background: #2a2f3a;
+  border: 1px solid #3f4758;
+  color: #e0e0e0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.check-updates-btn:hover:not(:disabled) {
+  background: #3f4758;
+  border-color: #4CAF50;
+}
+
+.check-updates-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

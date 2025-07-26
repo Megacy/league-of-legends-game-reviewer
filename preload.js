@@ -33,4 +33,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getObsConnectionStatus: () => ipcRenderer.invoke('get-obs-connection-status'),
   getObsRecordingSettings: () => ipcRenderer.invoke('get-obs-recording-settings'),
   getFfmpegCommand: (settings) => ipcRenderer.invoke('getFfmpegCommand', settings),
+  
+  // Auto-updater APIs
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', callback),
 });
