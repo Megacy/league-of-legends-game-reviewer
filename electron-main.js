@@ -935,15 +935,12 @@ let leaguePoller = null;
 
 // --- Auto Updater Configuration ---
 function setupAutoUpdater() {
-  // Configure auto-updater for private repository
+  // Configure auto-updater for GitHub releases
   autoUpdater.setFeedURL({
     provider: 'github',
     owner: 'Megacy',
-    repo: 'league-of-legends-game-reviewer',
-    private: true
-  });
-  
-  // Configure auto-updater
+    repo: 'league-of-legends-game-reviewer'
+  });  // Configure auto-updater
   autoUpdater.checkForUpdatesAndNotify();
   
   // Log auto-updater events
