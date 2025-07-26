@@ -82,6 +82,7 @@ class EventRecorder {
       const eventsData = {
         metadata: {
           recordedAt: new Date().toISOString(),
+          recordingStartTime: this.startTime, // Wall-clock time when recording started
           activePlayerName: this.activePlayerName,
           totalEvents: this.events.length
         },
@@ -116,8 +117,10 @@ class EventRecorder {
           for (const event of data.Events) {
             // Only add new events
             if (!this.events.find(e => e.EventID === event.EventID)) {
-              // Enrich ChampionKill events with champion names
+              // Enrich ChampionKill events with champion names and add wall-clock timestamp
               const enrichedEvent = this.enrichEvent(event);
+              // Add wall-clock timestamp when this event was captured
+              enrichedEvent.capturedAt = Date.now();
               this.events.push(enrichedEvent);
             }
           }

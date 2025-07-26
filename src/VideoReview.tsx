@@ -1,102 +1,14 @@
 import { useRef, useState, useEffect } from 'react';
 import './App.css';
 import type { EventData, TimelineSettings } from './types/electron-api';
-
-// Champion name to ID mapping for Community Dragon API
-const CHAMPION_ID_MAP: Record<string, number> = {
-  'Jinx': 222, 'Tristana': 18, 'Ashe': 22, 'Thresh': 412, 'Zed': 238, 'Yasuo': 157,
-  'Garen': 86, 'Lux': 99, 'Riven': 92, 'Lee Sin': 64, 'Ahri': 103, 'Katarina': 55,
-  'Darius': 122, 'Draven': 119, 'Vayne': 67, 'Lucian': 236, 'Ezreal': 81, 'Caitlyn': 51,
-  'Miss Fortune': 21, 'Jhin': 202, 'Kai Sa': 145, 'Xayah': 498, 'Aphelios': 523,
-  'Samira': 360, 'Viego': 234, 'Gwen': 887, 'Akshan': 166, 'Vex': 711, 'Zeri': 221,
-  'Renata Glasc': 888, 'Bel Veth': 200, 'Nilah': 895, 'K Sante': 897, 'Naafiri': 950,
-  'Briar': 233, 'Hwei': 910, 'Smolder': 901, 'Aurora': 893, 'Ambessa': 799,
-  // Add more champions as needed - these are the most common ones
-  'Aatrox': 266, 'Akali': 84, 'Alistar': 12, 'Ammu': 32, 'Anivia': 34, 'Annie': 1,
-  'Azir': 268, 'Bard': 432, 'Blitzcrank': 53, 'Brand': 63, 'Braum': 201, 'Camille': 164,
-  'Cassiopeia': 69, 'Cho Gath': 31, 'Corki': 42, 'Diana': 131, 'Dr Mundo': 36,
-  'Ekko': 245, 'Elise': 60, 'Evelynn': 28, 'Fiddlesticks': 9, 'Fiora': 114, 'Fizz': 105,
-  'Galio': 3, 'Gangplank': 41, 'Gragas': 79, 'Graves': 104, 'Hecarim': 120, 'Heimerdinger': 74,
-  'Illaoi': 420, 'Irelia': 39, 'Ivern': 427, 'Janna': 40, 'Jarvan IV': 59, 'Jax': 24,
-  'Jayce': 126, 'Karthus': 30, 'Kassadin': 38, 'Kennen': 85, 'Kha Zix': 121, 'Kindred': 203,
-  'Kled': 240, 'Kog Maw': 96, 'LeBlanc': 7, 'Leona': 89, 'Lissandra': 127, 'Malphite': 54,
-  'Malzahar': 90, 'Maokai': 57, 'Master Yi': 11, 'Mordekaiser': 82, 'Morgana': 25,
-  'Nami': 267, 'Nasus': 75, 'Nautilus': 111, 'Nidalee': 76, 'Nocturne': 56, 'Nunu': 20,
-  'Olaf': 2, 'Orianna': 61, 'Ornn': 516, 'Pantheon': 80, 'Poppy': 78, 'Pyke': 555,
-  'Qiyana': 246, 'Quinn': 133, 'Rakan': 497, 'Rammus': 33, 'Rek Sai': 421, 'Renekton': 58,
-  'Rengar': 107, 'Rumble': 68, 'Ryze': 13, 'Sejuani': 113, 'Senna': 235, 'Seraphine': 147,
-  'Sett': 875, 'Shaco': 35, 'Shen': 98, 'Shyvana': 102, 'Singed': 27, 'Sion': 14,
-  'Sivir': 15, 'Skarner': 72, 'Sona': 37, 'Soraka': 16, 'Swain': 50, 'Sylas': 517,
-  'Syndra': 134, 'Tahm Kench': 223, 'Taliyah': 163, 'Talon': 91, 'Taric': 44, 'Teemo': 17,
-  'Twisted Fate': 4, 'Twitch': 29, 'Udyr': 77, 'Urgot': 6, 'Varus': 110, 'Vel Koz': 161,
-  'Vi': 254, 'Viktor': 112, 'Vladimir': 8, 'Volibear': 106, 'Warwick': 19, 'Wukong': 62,
-  'Xin Zhao': 5, 'Yorick': 83, 'Yuumi': 350, 'Zac': 154, 'Ziggs': 115, 'Zilean': 26,
-  'Zoe': 142, 'Zyra': 143,
-  // Additional missing champions based on user feedback
-  'Aurelion Sol': 136, 'AurelionSol': 136, 'Yunara': 804 // Yunara is a new champion (2025)
-};
-
-// Function to get champion icon URL
-function getChampionIconUrl(championName: string): string {
-  // Handle common name variations and clean up the name
-  const cleanName = championName.replace(/'/g, '').replace(/\s+/g, ' ').trim();
-  
-  // Handle specific name mappings for champions with special characters or variations
-  const nameMap: Record<string, string> = {
-    'KaiSa': 'Kai Sa',
-    'Kai Sa': 'Kai Sa',
-    'LeBlanc': 'LeBlanc',
-    'Cho Gath': 'Cho Gath',
-    'Dr. Mundo': 'Dr Mundo',
-    'Jarvan IV': 'Jarvan IV',
-    'Kha Zix': 'Kha Zix',
-    'Kog Maw': 'Kog Maw',
-    'Lee Sin': 'Lee Sin',
-    'Master Yi': 'Master Yi',
-    'Miss Fortune': 'Miss Fortune',
-    'Rek Sai': 'Rek Sai',
-    'Tahm Kench': 'Tahm Kench',
-    'Twisted Fate': 'Twisted Fate',
-    'Vel Koz': 'Vel Koz',
-    'Xin Zhao': 'Xin Zhao',
-    'Renata Glasc': 'Renata Glasc',
-    'Bel Veth': 'Bel Veth',
-    'K Sante': 'K Sante',
-    // Handle specific champion name variations
-    'Aurelian Sol': 'Aurelion Sol',
-    'AurelianSol': 'Aurelion Sol',
-    'Yunara': 'Yunara' // New champion (2025) - separate from Yuumi
-  };
-  
-  const mappedName = nameMap[cleanName] || cleanName;
-  const championId = CHAMPION_ID_MAP[mappedName];
-  
-  if (championId) {
-    return `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/${championId}.png`;
-  }
-  
-  // If champion not found, try a fallback - use question mark icon or similar
-  console.warn(`Champion not found in mapping: "${championName}" (cleaned: "${cleanName}", mapped: "${mappedName}")`);
-  return `https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/0.png`;
-}
-
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  ChampionKill: 'Kill',
-  ChampionSpecialKill: 'Special Kill',
-  FirstBlood: 'First Blood',
-  TurretKilled: 'Tower',
-  InhibKilled: 'Inhibitor',
-  DragonKill: 'Dragon',
-  BaronKill: 'Baron',
-  HeraldKill: 'Herald',
-  Multikill: 'Multikill',
-  Ace: 'Ace',
-  // ...add more as needed
-};
-
-const DEFAULT_VISIBLE = [
-  'ChampionKill', 'TurretKilled', 'DragonKill', 'BaronKill', 'FirstBlood', 'Ace', 'InhibKilled', 'HeraldKill', 'Multikill',
-];
+import { 
+  calculateGameTimeOffset, 
+  groupEvents, 
+  DEFAULT_VISIBLE,
+  EVENT_TYPE_LABELS,
+  type GroupedEvent 
+} from './components/TimelineUtils';
+import { ChampionKillTooltip, CustomEventTooltip } from './components/TimelineTooltips';
 
 // Helper function to get player name from League Live Client API
 async function getPlayerNameFromLeague(): Promise<string | null> {
@@ -118,543 +30,13 @@ async function getPlayerNameFromLeague(): Promise<string | null> {
   }
 }
 
-// Helper function to check if an event is related to player's KDA
-function isPlayerKDAEvent(event: EventData, playerName: string): boolean {
-  if (!playerName || event.EventName !== 'ChampionKill') return false;
-  
-  // Player got a kill
-  if (event.KillerName === playerName) return true;
-  
-  // Player died
-  if (event.VictimName === playerName) return true;
-  
-  // Player got an assist
-  if (event.Assisters && event.Assisters.includes(playerName)) return true;
-  
-  return false;
-}
 
-// Helper function to get icon for KDA events
-function getKDAIcon(event: EventData, playerName: string): string {
-  if (event.VictimName === playerName) {
-    return '💀'; // Death (skull icon)
-  } else if (event.KillerName === playerName) {
-    return '⚔️'; // Kill
-  } else if (event.Assisters && event.Assisters.includes(playerName)) {
-    return '🤝'; // Assist
-  }
-  return '⚔️'; // Default
-}
 
-// Helper function to calculate timing offset between game time and video time
-function calculateGameTimeOffset(events: EventData[]): number {
-  // The key insight: League API EventTime is game time (0 = game start)
-  // But video recording starts during loading screen, which can be 60-120+ seconds
-  // We need to find when the game actually started in the video timeline
-  
-  // Find GameStart and MinionsSpawning events for reference
-  const gameStartEvent = events.find(e => e.EventName === 'GameStart');
-  const minionsEvent = events.find(e => e.EventName === 'MinionsSpawning');
-  
-  // Strategy 1: Use MinionsSpawning as a more reliable reference
-  // Minions spawn at exactly 1:05 (65 seconds) game time in all games
-  if (minionsEvent && minionsEvent.EventTime) {
-    // If minions spawn at 65.03s game time, and we know this should be 65s,
-    // then the actual game start was at minions_time - 65
-    const actualGameStartInGameTime = minionsEvent.EventTime - 65;
-    console.log('[Timeline] Using MinionsSpawning reference - EventTime:', minionsEvent.EventTime, 'Calculated game start offset:', actualGameStartInGameTime);
-    
-    // The offset to add to game times to get video times
-    // If game actually started at 90s into the recording, then we need to add 90s to all game times
-    // But we don't know the exact video start time, so we use a heuristic
-    
-    // Conservative estimate: assume recording started 60-90s before game start
-    // This means game events need to be shifted forward by this amount
-    const estimatedLoadingTime = 75; // seconds, adjust based on typical loading times
-    return -estimatedLoadingTime; // Negative because we subtract this from game time, effectively adding to video time
-  }
-  
-  // Strategy 2: Use GameStart if available, but with loading time estimate
-  if (gameStartEvent && gameStartEvent.EventTime !== undefined) {
-    console.log('[Timeline] Using GameStart reference - EventTime:', gameStartEvent.EventTime);
-    // Estimate that recording started 75 seconds before game start
-    const estimatedLoadingTime = 75;
-    return gameStartEvent.EventTime - estimatedLoadingTime; // This will be negative, which is correct
-  }
-  
-  // Strategy 3: Fallback - assume first significant event happened after loading + game time
-  const significantEvents = events.filter(e => 
-    e.EventTime && e.EventTime > 30 && // Ignore very early events
-    !['GameStart', 'MinionsSpawning'].includes(e.EventName)
-  );
-  
-  if (significantEvents.length > 0) {
-    const firstEventTime = Math.min(...significantEvents.map(e => e.EventTime));
-    // Assume this event happened at firstEventTime + loadingTime in the video
-    const estimatedLoadingTime = 75;
-    const calculatedOffset = -estimatedLoadingTime;
-    console.log('[Timeline] Using fallback - first significant event at:', firstEventTime, 'estimated offset:', calculatedOffset);
-    return calculatedOffset;
-  }
-  
-  console.log('[Timeline] No timing reference found, using 0 offset');
-  return 0;
-}
-
-// Helper function to group events within 10 seconds
-interface GroupedEvent {
-  eventType: string;
-  events: EventData[];
-  startTime: number;
-  count: number;
-  icon: string;
-}
-
-function groupEvents(events: EventData[], visibleTypes: string[], showOnlyMyKDA: boolean = false, playerName: string = '', gameTimeOffset: number = 0): GroupedEvent[] {
-  let filteredEvents = events.filter(e => visibleTypes.includes(e.EventName));
-  
-  // Additional filtering for KDA events if enabled
-  if (showOnlyMyKDA && playerName) {
-    filteredEvents = filteredEvents.filter(e => isPlayerKDAEvent(e, playerName));
-  }
-  
-  const groups: GroupedEvent[] = [];
-  const groupWindow = 20; // 20 seconds grouping window
-  
-  // Sort events by time
-  const sortedEvents = [...filteredEvents].sort((a, b) => a.EventTime - b.EventTime);
-  
-  for (const event of sortedEvents) {
-    // Apply offset to event time for comparison
-    // Note: offset might be negative (loading time), so we subtract it to add time
-    const adjustedEventTime = Math.max(0, event.EventTime - gameTimeOffset);
-    
-    // Try to find an existing group for this event type within the time window
-    const existingGroup = groups.find(group => 
-      group.eventType === event.EventName && 
-      Math.abs(adjustedEventTime - group.startTime) <= groupWindow
-    );
-    
-    if (existingGroup) {
-      // Add to existing group
-      existingGroup.events.push(event);
-      existingGroup.count = existingGroup.events.length;
-      // Update start time to be the earliest in the group (already adjusted)
-      existingGroup.startTime = Math.min(existingGroup.startTime, adjustedEventTime);
-    } else {
-      // Create new group
-      let icon = '⚔️';
-      
-      // Use KDA-specific icons if in KDA mode
-      if (showOnlyMyKDA && playerName && event.EventName === 'ChampionKill') {
-        icon = getKDAIcon(event, playerName);
-      } else {
-        // Default icon mapping
-        if (event.EventName === 'ChampionKill') icon = '⚔️';
-        else if (event.EventName === 'TurretKilled') icon = '🏰';
-        else if (event.EventName === 'DragonKill') icon = '🐉';
-        else if (event.EventName === 'BaronKill') icon = '👹';
-        else if (event.EventName === 'FirstBlood') icon = '🩸';
-        else if (event.EventName === 'Ace') icon = '⭐';
-        else if (event.EventName === 'InhibKilled') icon = '💎';
-        else if (event.EventName === 'HeraldKill') icon = '🐚';
-        else if (event.EventName === 'Multikill') icon = '🔥';
-        else if (event.EventName === 'AtakhanKill') icon = '🦎';
-      }
-      
-      groups.push({
-        eventType: event.EventName,
-        events: [event],
-        startTime: adjustedEventTime, // Use the pre-calculated adjusted time
-        count: 1,
-        icon
-      });
-    }
-  }
-  
-  return groups.sort((a, b) => a.startTime - b.startTime);
-}
-
-// Helper function to generate enhanced tooltips for grouped events
-function generateTooltip(group: GroupedEvent, showOnlyMyKDA: boolean = false, playerName: string = ''): string {
-  const baseText = `${group.count > 1 ? `${group.count}x ` : ''}${EVENT_TYPE_LABELS[group.eventType] || group.eventType} @ ${group.startTime.toFixed(1)}s`;
-  
-  // For ChampionKill events, show champion vs champion details
-  if (group.eventType === 'ChampionKill' && group.events.length > 0) {
-    const killDetails = group.events.map(event => {
-      let killText = '';
-      
-      // If in KDA mode, add context about the player's role
-      if (showOnlyMyKDA && playerName) {
-        if (event.VictimName === playerName) {
-          killText = `💀 YOU died to ${event.KillerChampion || event.KillerName}`;
-        } else if (event.KillerName === playerName) {
-          killText = `⚔️ YOU killed ${event.VictimChampion || event.VictimName}`;
-        } else if (event.Assisters && event.Assisters.includes(playerName)) {
-          killText = `🤝 YOU assisted: ${event.KillerChampion || event.KillerName} killed ${event.VictimChampion || event.VictimName}`;
-        }
-        
-        // Add assisters info if relevant
-        if (event.AssisterChampions && event.AssisterChampions.length > 0 && event.KillerName === playerName) {
-          killText += ` (assisted by ${event.AssisterChampions.join(', ')})`;
-        } else if (event.Assisters && event.Assisters.length > 0 && event.VictimName === playerName) {
-          const otherAssisters = event.Assisters.filter(name => name !== playerName);
-          if (otherAssisters.length > 0) {
-            killText += ` (assisted by ${otherAssisters.join(', ')})`;
-          }
-        }
-      } else {
-        // Regular tooltip format
-        if (event.KillerChampion && event.VictimChampion) {
-          killText = `${event.KillerChampion} killed ${event.VictimChampion}`;
-          if (event.AssisterChampions && event.AssisterChampions.length > 0) {
-            killText += ` (assisted by ${event.AssisterChampions.join(', ')})`;
-          }
-        } else if (event.KillerName && event.VictimName) {
-          // Fallback to summoner names if champion names not available
-          killText = `${event.KillerName} killed ${event.VictimName}`;
-          if (event.Assisters && event.Assisters.length > 0) {
-            killText += ` (assisted by ${event.Assisters.join(', ')})`;
-          }
-        }
-      }
-      
-      return killText || `Kill @ ${event.EventTime.toFixed(1)}s`;
-    }).join('\n');
-    
-    return `${baseText}\n${killDetails}`;
-  }
-  
-  return baseText;
-}
-
-// Visual Tooltip Component for Champion Kill Events
-function ChampionKillTooltip({ group, showKDA, playerName, x, y }: {
-  group: GroupedEvent;
-  showKDA: boolean;
-  playerName: string;
-  x: number;
-  y: number;
-}) {
-  if (group.eventType !== 'ChampionKill' || group.events.length === 0) {
-    // Fallback to text tooltip for non-champion events
-    return (
-      <div style={{
-        position: 'fixed',
-        left: x - 100,
-        top: y - 80,
-        background: 'rgba(0, 0, 0, 0.9)',
-        color: '#fff',
-        padding: '8px 12px',
-        borderRadius: 6,
-        fontSize: 12,
-        whiteSpace: 'pre-line',
-        zIndex: 1000,
-        pointerEvents: 'none',
-        maxWidth: 200
-      }}>
-        {generateTooltip(group, showKDA, playerName)}
-      </div>
-    );
-  }
-
-  // Helper function to render a single kill horizontally
-  const renderSingleKill = (event: EventData, index: number = 0) => {
-    const killerChampion = event.KillerChampion || event.KillerName || 'Unknown';
-    const victimChampion = event.VictimChampion || event.VictimName || 'Unknown';
-
-    // Determine kill type for KDA mode
-    let killType = 'kill';
-    let killIcon = '⚔️';
-    let leftChampion = killerChampion;
-    let rightChampion = victimChampion;
-    
-    if (showKDA && playerName) {
-      if (event.VictimName === playerName) {
-        killType = 'death';
-        killIcon = '💀';
-        // For deaths, show killer -> player (victim)
-        leftChampion = killerChampion;
-        rightChampion = victimChampion;
-      } else if (event.Assisters && event.Assisters.includes(playerName)) {
-        killType = 'assist';
-        killIcon = '🤝';
-        // For assists, show player's champion -> victim
-        // Find the player's champion from the AssisterChampions array
-        if (event.AssisterChampions && event.Assisters) {
-          const playerIndex = event.Assisters.indexOf(playerName);
-          if (playerIndex >= 0 && playerIndex < event.AssisterChampions.length) {
-            leftChampion = event.AssisterChampions[playerIndex]; // Player's champion
-          } else {
-            leftChampion = 'YOU'; // Fallback if champion not found
-          }
-        } else {
-          leftChampion = 'YOU'; // Fallback if no champion data
-        }
-        rightChampion = victimChampion; // Show who died
-      }
-    }
-
-    // In KDA mode, show assists only if the player is actually assisting this kill
-    if (showKDA && killType === 'assist') {
-      if (!(event.Assisters && event.Assisters.includes(playerName))) {
-        return null;
-      }
-    }
-
-    return (
-      <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', minHeight: 44 }}>
-        {/* Killer champion */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 50 }}>
-          <div style={{ 
-            width: 32, 
-            height: 32, 
-            borderRadius: 4,
-            border: killType === 'kill' && showKDA ? '2px solid #00ff88' : killType === 'assist' && showKDA ? '2px solid #ffd700' : '1px solid #666',
-            background: '#333',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden'
-          }}>
-            {leftChampion === 'ASSIST' || leftChampion === 'YOU' ? (
-              <span style={{ 
-                color: '#ffd700', 
-                fontSize: '12px', 
-                fontWeight: 'bold',
-                textAlign: 'center'
-              }}>
-                🤝
-              </span>
-            ) : (
-              <img 
-                src={getChampionIconUrl(leftChampion)} 
-                alt={leftChampion}
-                style={{ 
-                  width: '100%', 
-                  height: '100%',
-                  objectFit: 'cover'
-                }}
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  // Show champion name initial as fallback
-                  const parent = target.parentElement;
-                  if (parent) {
-                    parent.innerHTML = leftChampion.charAt(0);
-                    parent.style.color = '#fff';
-                    parent.style.fontSize = '12px';
-                    parent.style.fontWeight = 'bold';
-                  }
-                }}
-              />
-            )}
-          </div>
-          <span style={{ 
-            fontSize: 9, 
-            color: killType === 'kill' && showKDA ? '#00ff88' : killType === 'assist' && showKDA ? '#ffd700' : '#fff',
-            fontWeight: (killType === 'kill' || killType === 'assist') && showKDA ? 'bold' : 'normal',
-            maxWidth: 50,
-            textAlign: 'center',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap'
-          }}>
-            {leftChampion === 'ASSIST' || leftChampion === 'YOU' ? 'YOU' : leftChampion}
-          </span>
-        </div>
-        
-        {/* Kill icon */}
-        <div style={{ 
-          fontSize: 14, 
-          color: killType === 'death' ? '#ff6b35' : killType === 'assist' ? '#ffd700' : '#00ff88',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 32,
-          minWidth: 20
-        }}>
-          {killIcon}
-        </div>
-        
-        {/* Victim champion */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 50 }}>
-          <div style={{ 
-            width: 32, 
-            height: 32, 
-            borderRadius: 4,
-            border: killType === 'death' && showKDA ? '2px solid #ff6b35' : '1px solid #666',
-            background: '#333',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            overflow: 'hidden'
-          }}>
-            <img 
-              src={getChampionIconUrl(rightChampion)} 
-              alt={rightChampion}
-              style={{ 
-                width: '100%', 
-                height: '100%',
-                objectFit: 'cover'
-              }}
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-                // Show champion name initial as fallback
-                const parent = target.parentElement;
-                if (parent) {
-                  parent.innerHTML = rightChampion.charAt(0);
-                  parent.style.color = '#fff';
-                  parent.style.fontSize = '12px';
-                  parent.style.fontWeight = 'bold';
-                }
-              }}
-            />
-          </div>
-          <span style={{ 
-            fontSize: 9, 
-            color: killType === 'death' && showKDA ? '#ff6b35' : '#fff',
-            fontWeight: killType === 'death' && showKDA ? 'bold' : 'normal',
-            maxWidth: 50,
-            textAlign: 'center',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap'
-          }}>
-            {rightChampion}
-          </span>
-        </div>
-      </div>
-    );
-  };
-
-  // Calculate dynamic height based on number of events
-  const visibleEventsCount = group.events.filter(event => {
-    const killType = showKDA && playerName ? (
-      event.VictimName === playerName ? 'death' :
-      event.Assisters && event.Assisters.includes(playerName) ? 'assist' : 'kill'
-    ) : 'kill';
-    
-    // In KDA mode, skip assists that aren't from the player
-    if (showKDA && killType === 'assist') {
-      return event.Assisters && event.Assisters.includes(playerName);
-    }
-    return true;
-  }).length;
-  
-  // Calculate dynamic offset: base (120px) + extra per row (50px each)
-  const baseOffset = 120;
-  const extraOffset = Math.max(0, (visibleEventsCount - 1) * 50);
-  const dynamicOffset = baseOffset + extraOffset;
-
-  return (
-    <div style={{
-      position: 'fixed',
-      left: Math.min(x - 75, window.innerWidth - 200), // Center horizontally on the icon
-      top: Math.max(y - dynamicOffset, 10), // Dynamic positioning based on content height
-      background: 'rgba(35, 41, 70, 0.95)',
-      border: '1px solid #444',
-      borderRadius: 8,
-      padding: '12px',
-      zIndex: 1000,
-      pointerEvents: 'none',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-      minWidth: 150,
-      transform: 'translateX(0)' // Remove any centering transform
-    }}>
-      {/* Time and event type */}
-      <div style={{ 
-        textAlign: 'center', 
-        color: '#aaa', 
-        fontSize: 11, 
-        marginBottom: 8,
-        fontWeight: 500
-      }}>
-        {group.events.length > 1 ? `${group.events.length}x ` : ''}{EVENT_TYPE_LABELS[group.eventType]} @ {group.startTime.toFixed(1)}s
-      </div>
-      
-      {/* Render all kills vertically (filter out assists in KDA mode) */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {group.events.map((event, index) => renderSingleKill(event, index)).filter(Boolean)}
-      </div>
-    </div>
-  );
-}
-
-// Custom tooltip component for various event types
-function CustomEventTooltip({ group, x, y }: {
-  group: GroupedEvent;
-  x: number;
-  y: number;
-}) {
-  const event = group.events[0]; // Use first event for tooltip data
-  
-  let tooltipContent = '';
-  const iconEmoji = group.icon;
-
-  switch (event.EventName) {
-    case 'TurretKilled':
-      tooltipContent = `Turret destroyed at ${event.EventTime.toFixed(1)}s`;
-      break;
-    case 'DragonKill':
-      tooltipContent = `Dragon slain at ${event.EventTime.toFixed(1)}s`;
-      break;
-    case 'BaronKill':
-      tooltipContent = `Baron slain at ${event.EventTime.toFixed(1)}s`;
-      break;
-    case 'FirstBlood':
-      tooltipContent = `First Blood at ${event.EventTime.toFixed(1)}s`;
-      break;
-    case 'Ace':
-      tooltipContent = `Team Ace at ${event.EventTime.toFixed(1)}s`;
-      break;
-    case 'InhibKilled':
-      tooltipContent = `Inhibitor destroyed at ${event.EventTime.toFixed(1)}s`;
-      break;
-    case 'HeraldKill':
-      tooltipContent = `Herald slain at ${event.EventTime.toFixed(1)}s`;
-      break;
-    case 'Multikill':
-      tooltipContent = `Multikill at ${event.EventTime.toFixed(1)}s`;
-      break;
-    case 'AtakhanKill':
-      tooltipContent = `Atakhan slain at ${event.EventTime.toFixed(1)}s`;
-      break;
-    default:
-      tooltipContent = `${event.EventName} at ${event.EventTime.toFixed(1)}s`;
-  }
-
-  return (
-    <div style={{
-      position: 'fixed',
-      left: x - 100, // Center horizontally on the icon
-      top: y - 40, // Position closer to timeline icons but still clear
-      backgroundColor: 'rgba(0, 0, 0, 0.9)',
-      color: 'white',
-      padding: '6px 10px',
-      borderRadius: 4,
-      fontSize: 11,
-      fontWeight: 'bold',
-      zIndex: 10000,
-      border: '1px solid #555',
-      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.8)',
-      pointerEvents: 'none',
-      maxWidth: 180,
-      textAlign: 'center',
-      transform: 'translateX(0)' // Remove the centering transform
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
-        <span style={{ fontSize: 16 }}>{iconEmoji}</span>
-        <span>{tooltipContent}</span>
-      </div>
-    </div>
-  );
-}
 
 export default function VideoReview({ setCurrentFilename, latestFile }: { setCurrentFilename?: (filename: string) => void, latestFile?: string | null }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [events, setEvents] = useState<EventData[]>([]);
+  const [eventsMetadata, setEventsMetadata] = useState<{ recordingStartTime?: number; activePlayerName?: string } | null>(null);
   const [videoUrl, setVideoUrl] = useState('');
   const [fileBase, setFileBase] = useState('');
   const [visibleTypes, setVisibleTypes] = useState<string[]>(DEFAULT_VISIBLE);
@@ -851,6 +233,7 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
         // Handle both old format (array) and new format (object with metadata)
         let events: EventData[];
         let storedPlayerName: string | null;
+        let metadata = null;
         if (Array.isArray(loaded)) {
           // Old format - just events array
           events = loaded;
@@ -859,6 +242,7 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
           // New format with metadata
           events = loaded.events;
           storedPlayerName = loaded.activePlayerName || null;
+          metadata = (loaded as { metadata?: { recordingStartTime?: number; activePlayerName?: string } }).metadata || null;
         } else {
           events = [];
           storedPlayerName = null;
@@ -869,6 +253,7 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
           : [];
         console.log('[VideoReview] Setting events state:', normalized);
         setEvents(normalized);
+        setEventsMetadata(metadata);
         
         // Use stored player name if available, otherwise detect
         if (storedPlayerName) {
@@ -1060,8 +445,8 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
               {/* Render event icons on timeline */}
               {(() => {
                 // Use manual offset if provided, otherwise calculate automatically
-                const gameTimeOffset = manualTimingOffset !== 0 ? manualTimingOffset : calculateGameTimeOffset(events);
-                const groupedEvents = groupEvents(events, visibleTypes, showOnlyMyKDA, playerName, gameTimeOffset);
+                const gameTimeOffset = manualTimingOffset !== 0 ? manualTimingOffset : calculateGameTimeOffset(events, eventsMetadata || undefined);
+                const groupedEvents = groupEvents(events, visibleTypes, showOnlyMyKDA, playerName, gameTimeOffset, eventsMetadata || undefined);
                 console.log('[Timeline] Total events:', events.length, 'Grouped events:', groupedEvents.length, 'Visible types:', visibleTypes, 'KDA mode:', showOnlyMyKDA, 'Game time offset:', gameTimeOffset, 'Manual offset:', manualTimingOffset);
                 return groupedEvents.map((group, idx) => {
                   const duration = videoDuration || videoRef.current?.duration || 1;
@@ -1166,8 +551,8 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
                   {manualTimingOffset !== 0 ? (
                     <>Manual timing offset: {manualTimingOffset.toFixed(2)}s</>
                   ) : (
-                    <>Auto timing offset: {calculateGameTimeOffset(events).toFixed(2)}s 
-                    {calculateGameTimeOffset(events) < 0 ? ' (adding loading time)' : ' (subtracting from game time)'}</>
+                    <>Auto timing offset: {calculateGameTimeOffset(events, eventsMetadata || undefined).toFixed(2)}s 
+                    {calculateGameTimeOffset(events, eventsMetadata || undefined) < 0 ? ' (adding loading time)' : ' (subtracting from game time)'}</>
                   )}
                 </div>
               )}
@@ -1314,7 +699,7 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
                           )}
                         </div>
                         <div style={{ fontSize: 11, color: '#666', marginTop: 8 }}>
-                          Current: {manualTimingOffset !== 0 ? `Manual (${manualTimingOffset}s)` : `Auto (${calculateGameTimeOffset(events).toFixed(1)}s)`}
+                          Current: {manualTimingOffset !== 0 ? `Manual (${manualTimingOffset}s)` : `Auto (${calculateGameTimeOffset(events, eventsMetadata || undefined).toFixed(1)}s)`}
                         </div>
                       </div>
                     )}
