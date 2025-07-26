@@ -1,7 +1,7 @@
 {
   "name": "movlex-league-recorder",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,7 +15,7 @@
     "release": "npm run build && npm run electron:publish",
     "test-update-server": "node dev-update-server.js",
     "version:patch": "./release.sh patch",
-    "version:minor": "./release.sh minor", 
+    "version:minor": "./release.sh minor",
     "version:major": "./release.sh major",
     "generate-icons": "electron-icon-builder --input=./icon-source.png --output=./build --flatten"
   },
