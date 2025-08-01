@@ -55,7 +55,7 @@ function saveUserSettings(settings) {
 
 const userSettings = loadUserSettings();
 
-let autoRecordEnabled = true;
+let autoRecordEnabled = userSettings.autoRecordEnabled !== undefined ? userSettings.autoRecordEnabled : true;
 
 // --- Recordings Directory Logic ---
 const isDevelopment = process.env.NODE_ENV === 'development';
@@ -707,7 +707,9 @@ ipcMain.handle('get-timeline-settings', async () => {
     visibleEventTypes: userSettings.timelineSettings?.visibleEventTypes || [
       'ChampionKill', 'TurretKilled', 'DragonKill', 'BaronKill', 'FirstBlood', 
       'Ace', 'InhibKilled', 'HeraldKill', 'Multikill'
-    ]
+    ],
+    showOnlyMyKDA: userSettings.timelineSettings?.showOnlyMyKDA || false,
+    manualTimingOffset: userSettings.timelineSettings?.manualTimingOffset || 0
   };
 });
 

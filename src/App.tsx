@@ -63,6 +63,16 @@ function App() {
         }
         setRecordingsDirectory(dir);
       }
+
+      // Load autoRecord setting
+      if (window.electronAPI?.getAutoRecord) {
+        try {
+          const autoRecordSetting = await window.electronAPI.getAutoRecord();
+          setAutoRecord(autoRecordSetting);
+        } catch (err) {
+          console.error('Failed to load auto record setting:', err);
+        }
+      }
     };
 
     loadInitialData();
