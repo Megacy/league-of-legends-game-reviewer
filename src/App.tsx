@@ -44,6 +44,12 @@ function App() {
     }
 
     // Listen for update events
+    if (window.electronAPI?.onUpdateAvailable) {
+      window.electronAPI.onUpdateAvailable((_event, info) => {
+        setSuccessToast(`Update ${info.version} is available and downloading...`);
+      });
+    }
+    
     if (window.electronAPI?.onUpdateDownloaded) {
       window.electronAPI.onUpdateDownloaded((_event, info) => {
         setUpdateToast(`Update ${info.version} downloaded! Click to install and restart.`);

@@ -14,6 +14,9 @@ import OBSController from './obsController.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Global window reference
+let mainWindow;
+
 // --- Persistent User Settings Logic ---
 // In development, use local workspace settings file for easier testing
 const isDev = !app.isPackaged;
@@ -62,7 +65,7 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 let recordingsDirectory = userSettings.recordingsDirectory || path.join(app.getPath('documents'), 'Movlex-League-Recorder');
 
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     webPreferences: {
@@ -75,9 +78,9 @@ function createWindow() {
 
   // Load the Vite dev server in development, or the built index.html in production
   if (isDevelopment) {
-    win.loadURL('http://localhost:5173');
+    mainWindow.loadURL('http://localhost:5173');
   } else {
-    win.loadFile(path.join(__dirname, 'dist', 'index.html'));
+    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
   }
 }
 
@@ -952,6 +955,10 @@ function setupAutoUpdater() {
   
   autoUpdater.on('update-available', (info) => {
     logToFile('[AutoUpdater] Update available: ' + info.version);
+    // Notify frontend about available update
+    if (mainWindow) {
+      mainWindow.webContents.send('update-available', info);
+    }
   });
   
   autoUpdater.on('update-not-available', (info) => {

@@ -91,6 +91,7 @@ declare global {
     checkForUpdates: () => Promise<UpdateCheckResult>;
     installUpdate: () => Promise<boolean>;
     getAppVersion: () => Promise<string>;
+    onUpdateAvailable: (callback: (event: any, updateInfo: UpdateInfo) => void) => void;
     onUpdateDownloaded: (callback: (event: any, updateInfo: UpdateInfo) => void) => void;
   }
   interface Window {
