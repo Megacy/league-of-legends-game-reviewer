@@ -66,6 +66,21 @@ League of Legends Game Reviewer Desktop App
 - `dev`: Runs `npm run dev` (development build and hot reload)
 - `build:prod`: Runs `npm run build:prod` (production build and packaging)
 
+**Release Process (Automated):**
+- **Simple Release**: Use `npm run release` for patch releases (most common)
+- **Version Types**: `npm run release:minor` (features), `npm run release:major` (breaking changes)
+- **How it works**: 
+  - Local script (`simple-release.sh`) handles version bump, commit, and tag push
+  - GitHub Actions (`.github/workflows/release.yml`) automatically builds and releases
+  - Ensures `latest-mac.yml` is always included for auto-updater functionality
+- **Never manually run** `electron-builder --publish` or similar - causes conflicts
+- **Monitor progress**: Check GitHub Actions at https://github.com/Megacy/league-of-legends-game-reviewer/actions
+
+**Auto-Updater:**
+- Configured in `electron-main.js` with GitHub releases
+- Requires `latest-mac.yml` file in releases (handled automatically by GitHub Actions)
+- Users on older versions will auto-update when new releases are published
+
 **For future edits:**
 - See this file for structure. Update here if you add major new modules, types, or flows.
 - Always update user settings, types, and IPC in sync.
