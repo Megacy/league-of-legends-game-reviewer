@@ -313,7 +313,7 @@ function App() {
               setUpdateToast('No updates available. You have the latest version!');
             }
           } catch (_error) {
-            setUpdateToast('Failed to check for updates. Please try again later.');
+            setUpdateToast(`Failed to check for updates. Please try again later. ${_error}` );
           }
         }}
       />
