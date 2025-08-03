@@ -37,6 +37,7 @@ export interface TimelineSettings {
   visibleEventTypes?: string[];
   showOnlyMyKDA?: boolean;
   manualTimingOffset?: number; // Manual offset in seconds to adjust event timing
+  keyboardSeekSeconds?: number; // Number of seconds to seek with left/right arrow keys
 }
 
 export interface UpdateInfo {

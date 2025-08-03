@@ -657,7 +657,7 @@ ipcMain.handle('get-events-for-video', async (_event, fileBase) => {
       const parsedData = JSON.parse(data);
       
       // Handle new format with metadata or old format (array)
-      let events, activePlayerName = null;
+      let events, activePlayerName = null, metadata = null;
       if (Array.isArray(parsedData)) {
         // Old format - just an array of events
         events = parsedData;
@@ -665,17 +665,18 @@ ipcMain.handle('get-events-for-video', async (_event, fileBase) => {
       } else if (parsedData.events && Array.isArray(parsedData.events)) {
         // New format with metadata
         events = parsedData.events;
+        metadata = parsedData.metadata;
         activePlayerName = parsedData.metadata?.activePlayerName;
-        logToFile(`[EVENTS] Found ${events.length} events (new format) with player: ${activePlayerName}`);
+        logToFile(`[EVENTS] Found ${events.length} events (new format) with player: ${activePlayerName}, metadata: ${!!metadata}`);
       } else {
         logToFile(`[EVENTS] Invalid events file format`);
-        return { events: [], activePlayerName: null };
+        return { events: [], activePlayerName: null, metadata: null };
       }
       
-      return { events, activePlayerName };
+      return { events, activePlayerName, metadata };
     } else {
       logToFile(`[EVENTS] No events file found`);
-      return { events: [], activePlayerName: null };
+      return { events: [], activePlayerName: null, metadata: null };
     }
   } catch (e) {
     logToFile(`[EVENTS] Error loading events: ${e.message}`);

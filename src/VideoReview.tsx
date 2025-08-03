@@ -46,6 +46,7 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
   const [playerName, setPlayerName] = useState<string>('');
   const [playerNameSource, setPlayerNameSource] = useState<'stored' | 'live' | null>(null);
   const [manualTimingOffset, setManualTimingOffset] = useState<number>(0);
+  const [keyboardSeekSeconds, setKeyboardSeekSeconds] = useState<number>(2);
 
   // Dialog section collapse state
   const [kdaFilterExpanded, setKdaFilterExpanded] = useState(false);
@@ -92,7 +93,13 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
           setShowOnlyMyKDA(settings.showOnlyMyKDA);
         }
         if (settings.manualTimingOffset !== undefined) {
+          console.log('[VideoReview] Found manual timing offset in settings:', settings.manualTimingOffset);
           setManualTimingOffset(settings.manualTimingOffset);
+        } else {
+          console.log('[VideoReview] No manual timing offset in settings');
+        }
+        if (settings.keyboardSeekSeconds !== undefined) {
+          setKeyboardSeekSeconds(settings.keyboardSeekSeconds);
         }
       }).catch(err => {
         console.warn('[VideoReview] Could not load timeline settings:', err);
@@ -141,13 +148,14 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
       const settings: TimelineSettings = {
         visibleEventTypes: visibleTypes,
         showOnlyMyKDA: showOnlyMyKDA,
-        manualTimingOffset: manualTimingOffset
+        manualTimingOffset: manualTimingOffset,
+        keyboardSeekSeconds: keyboardSeekSeconds
       };
       window.electronAPI.setTimelineSettings(settings).catch(err => {
         console.warn('[VideoReview] Could not save timeline settings:', err);
       });
     }
-  }, [visibleTypes, showOnlyMyKDA, manualTimingOffset]);
+  }, [visibleTypes, showOnlyMyKDA, manualTimingOffset, keyboardSeekSeconds]);
   
   useEffect(() => {
     const video = videoRef.current;
@@ -221,14 +229,12 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
   useEffect(() => {
     if (fileBase && window.electronAPI?.getEventsForVideo) {
       console.log('[VideoReview] Loading events for fileBase:', fileBase);
-      console.log('[VideoReview] isExternalFile:', isExternalFile);
-      console.log('[VideoReview] latestFile:', latestFile);
       
       // For external files, pass the original file path so backend can look for events in the same directory
       const searchKey = isExternalFile && latestFile ? latestFile : fileBase;
       
       window.electronAPI.getEventsForVideo(searchKey).then(loaded => {
-        console.log('[VideoReview] Events loaded:', loaded);
+        console.log('[VideoReview] Events loaded successfully');
         
         // Handle both old format (array) and new format (object with metadata)
         let events: EventData[];
@@ -242,7 +248,8 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
           // New format with metadata
           events = loaded.events;
           storedPlayerName = loaded.activePlayerName || null;
-          metadata = (loaded as { metadata?: { recordingStartTime?: number; activePlayerName?: string } }).metadata || null;
+          // Extract metadata directly from the loaded object
+          metadata = (loaded as { events: EventData[]; activePlayerName?: string; metadata?: { recordingStartTime?: number; activePlayerName?: string } }).metadata || null;
         } else {
           events = [];
           storedPlayerName = null;
@@ -253,6 +260,7 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
           : [];
         console.log('[VideoReview] Setting events state:', normalized);
         setEvents(normalized);
+        console.log('[VideoReview] Setting metadata:', metadata);
         setEventsMetadata(metadata);
         
         // Use stored player name if available, otherwise detect
@@ -297,17 +305,6 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
       setClipSelecting(true);
     }
   };
-  const handleTimelineMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!clipMode || !clipSelecting || !videoRef.current) return;
-    const rect = (e.target as HTMLDivElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percent = x / rect.width;
-    const duration = videoRef.current.duration;
-    if (!isNaN(duration)) {
-      const time = Math.max(0, Math.min(duration, percent * duration));
-      setClipEnd(time);
-    }
-  };
   const handleTimelineMouseUp = () => {
     if (clipMode && clipSelecting) setClipSelecting(false);
   };
@@ -325,6 +322,56 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
       return () => clearTimeout(timer);
     }
   }, [clipToast]);
+
+  // Keyboard shortcuts for video control when app is focused
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle shortcuts if video is loaded and no input/textarea is focused
+      if (!videoRef.current || !videoUrl) return;
+      
+      const activeElement = document.activeElement;
+      if (activeElement && (
+        activeElement.tagName === 'INPUT' || 
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.hasAttribute('contenteditable')
+      )) {
+        return; // Don't interfere with text input
+      }
+
+      switch (e.key) {
+        case 'ArrowLeft':
+          e.preventDefault();
+          // Go back by configured seconds
+          videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - keyboardSeekSeconds);
+          setCurrentTime(videoRef.current.currentTime);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          // Go forward by configured seconds
+          videoRef.current.currentTime = Math.min(
+            videoRef.current.duration || 0, 
+            videoRef.current.currentTime + keyboardSeekSeconds
+          );
+          setCurrentTime(videoRef.current.currentTime);
+          break;
+        case ' ':
+          e.preventDefault();
+          // Toggle play/pause
+          if (videoRef.current.paused) {
+            videoRef.current.play();
+          } else {
+            videoRef.current.pause();
+          }
+          break;
+      }
+    };
+
+    // Only add event listener when component is mounted and video is loaded
+    if (videoUrl) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [videoUrl, keyboardSeekSeconds]);
 
   return (
     <div className="video-review-container">
@@ -393,9 +440,11 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
               onClick={e => {
                 if (!videoRef.current) return;
                 if (!clipMode) {
-                  const rect = (e.target as HTMLDivElement).getBoundingClientRect();
-                  const x = (e as React.MouseEvent).clientX - rect.left;
-                  const percent = x / rect.width;
+                  // Always use the timeline container for coordinate calculation,
+                  // regardless of what was clicked (icon or timeline background)
+                  const timelineRect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                  const x = e.clientX - timelineRect.left;
+                  const percent = x / timelineRect.width;
                   const duration = videoRef.current.duration;
                   if (!isNaN(duration)) {
                     const newTime = percent * duration;
@@ -405,8 +454,20 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
                 }
               }}
               onMouseDown={handleTimelineMouseDown}
-              onMouseMove={handleTimelineMouseMove}
               onMouseUp={handleTimelineMouseUp}
+              onMouseMove={(e) => {
+                // Handle clip selection
+                if (clipMode && clipSelecting && videoRef.current) {
+                  const rect = (e.target as HTMLDivElement).getBoundingClientRect();
+                  const x = e.clientX - rect.left;
+                  const percent = x / rect.width;
+                  const duration = videoRef.current.duration;
+                  if (!isNaN(duration)) {
+                    const time = Math.max(0, Math.min(duration, percent * duration));
+                    setClipEnd(time);
+                  }
+                }
+              }}
               style={{ position: 'relative' }}
             >
               {/* --- Current time indicator line --- */}
@@ -447,7 +508,21 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
                 // Use manual offset if provided, otherwise calculate automatically
                 const gameTimeOffset = manualTimingOffset !== 0 ? manualTimingOffset : calculateGameTimeOffset(events, eventsMetadata || undefined);
                 const groupedEvents = groupEvents(events, visibleTypes, showOnlyMyKDA, playerName, gameTimeOffset, eventsMetadata || undefined);
-                console.log('[Timeline] Total events:', events.length, 'Grouped events:', groupedEvents.length, 'Visible types:', visibleTypes, 'KDA mode:', showOnlyMyKDA, 'Game time offset:', gameTimeOffset, 'Manual offset:', manualTimingOffset);
+                console.log('[Timeline] Total events:', events.length, 'Grouped events:', groupedEvents.length, 'Visible types:', visibleTypes, 'KDA mode:', showOnlyMyKDA, 'Game time offset:', gameTimeOffset.toFixed(3), 'Manual offset:', manualTimingOffset);
+                
+                // Enhanced debugging for timing issues
+                if (groupedEvents.length > 0) {
+                  const firstEvent = groupedEvents[0];
+                  const originalGameTime = firstEvent.events[0]?.EventTime || 0;
+                  const adjustedVideoTime = firstEvent.startTime;
+                  console.log('[Timeline Debug] First event:', {
+                    eventType: firstEvent.eventType,
+                    originalGameTime: originalGameTime.toFixed(1),
+                    adjustedVideoTime: adjustedVideoTime.toFixed(1),
+                    appliedOffset: (adjustedVideoTime - originalGameTime).toFixed(3),
+                    isManualOffset: manualTimingOffset !== 0
+                  });
+                }
                 return groupedEvents.map((group, idx) => {
                   const duration = videoDuration || videoRef.current?.duration || 1;
                   // Show icon at the actual event time
@@ -477,7 +552,7 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
                       transform: 'translateX(-50%)', // Center icon on its position
                       opacity: clipMode ? 0.5 : 1,
                       cursor: 'default', // Always default cursor
-                      pointerEvents: 'auto', // Allow hover events for tooltips
+                      pointerEvents: clipMode ? 'none' : 'auto', // Disable icon interactions in clip mode
                     }}
                     onMouseEnter={(e) => {
                       const rect = e.currentTarget.getBoundingClientRect();
@@ -492,16 +567,6 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
                     }}
                     onMouseLeave={() => {
                       setTooltipData(prev => ({ ...prev, visible: false }));
-                    }}
-                    onClick={e => {
-                      // Stop event propagation to prevent timeline click handler from running
-                      // with incorrect click position, but still allow seeking to this event's time
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (videoRef.current) {
-                        videoRef.current.currentTime = group.startTime;
-                        setCurrentTime(group.startTime); // Update state immediately
-                      }
                     }}
                   >
                     {group.icon}
@@ -551,8 +616,7 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
                   {manualTimingOffset !== 0 ? (
                     <>Manual timing offset: {manualTimingOffset.toFixed(2)}s</>
                   ) : (
-                    <>Auto timing offset: {calculateGameTimeOffset(events, eventsMetadata || undefined).toFixed(2)}s 
-                    {calculateGameTimeOffset(events, eventsMetadata || undefined) < 0 ? ' (adding loading time)' : ' (subtracting from game time)'}</>
+                    <>Calculated timing offset: {calculateGameTimeOffset(events, eventsMetadata || undefined).toFixed(2)}s</>
                   )}
                 </div>
               )}
@@ -662,15 +726,19 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
                         borderRadius: '0 0 4px 4px'
                       }}>
                         <div style={{ fontSize: 13, color: '#aaa', marginBottom: 12, marginTop: 12 }}>
-                          Fine-tune event timing if icons don't align with video actions. Negative values add time (for loading screen), positive values subtract time.
+                          {manualTimingOffset !== 0 ? (
+                            'Using manual timing override. Set to 0 to use calculated timing.'
+                          ) : (
+                            `Calculated timing offset: ${calculateGameTimeOffset(events, eventsMetadata || undefined).toFixed(3)}s (auto-detected from recording timestamps)`
+                          )}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                           <label style={{ color: '#fff', fontSize: 14 }}>Manual Offset:</label>
                           <input
                             type="number"
                             value={manualTimingOffset}
                             onChange={(e) => setManualTimingOffset(parseFloat(e.target.value) || 0)}
-                            step="1"
+                            step="0.1"
                             style={{
                               background: '#444',
                               border: '1px solid #666',
@@ -694,15 +762,107 @@ export default function VideoReview({ setCurrentFilename, latestFile }: { setCur
                                 cursor: 'pointer'
                               }}
                             >
-                              Reset
+                              Reset to Auto
                             </button>
                           )}
                         </div>
-                        <div style={{ fontSize: 11, color: '#666', marginTop: 8 }}>
-                          Current: {manualTimingOffset !== 0 ? `Manual (${manualTimingOffset}s)` : `Auto (${calculateGameTimeOffset(events, eventsMetadata || undefined).toFixed(1)}s)`}
-                        </div>
+                        {events.length > 0 && (
+                          <div style={{ fontSize: 11, color: '#888', marginTop: 8, paddingTop: 8, borderTop: '1px solid #333' }}>
+                            Events are positioned by adding this offset to game time.
+                            <br />
+                            Positive = events appear later, Negative = events appear earlier
+                          </div>
+                        )}
                       </div>
                     )}
+                  </div>
+                  
+                  {/* Keyboard Controls Section - Collapsible */}
+                  <div style={{ marginBottom: 12 }}>
+                    <div 
+                      style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        cursor: 'pointer', 
+                        padding: '8px 0',
+                        borderBottom: '1px solid #444'
+                      }}
+                      onClick={() => {
+                        // Simple toggle without state management since it's a simple setting
+                        const section = document.getElementById('keyboard-controls-section');
+                        if (section) {
+                          const isVisible = section.style.display !== 'none';
+                          section.style.display = isVisible ? 'none' : 'block';
+                          const arrow = document.getElementById('keyboard-controls-arrow');
+                          if (arrow) {
+                            arrow.style.transform = isVisible ? 'none' : 'rotate(90deg)';
+                          }
+                        }
+                      }}
+                    >
+                      <span id="keyboard-controls-arrow" style={{ marginRight: 8, transition: 'transform 0.2s' }}>▶</span>
+                      <span style={{ fontWeight: 500, color: '#fff' }}>Keyboard Controls</span>
+                      {keyboardSeekSeconds !== 2 && (
+                        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#4caf50', background: 'rgba(76,175,80,0.2)', padding: '2px 6px', borderRadius: 3 }}>
+                          {keyboardSeekSeconds}s
+                        </span>
+                      )}
+                    </div>
+                    <div id="keyboard-controls-section" style={{ 
+                      paddingLeft: 20, 
+                      paddingBottom: 16, 
+                      borderBottom: '1px solid #444',
+                      background: 'rgba(0,0,0,0.1)',
+                      borderRadius: '0 0 4px 4px',
+                      display: 'none'
+                    }}>
+                      <div style={{ fontSize: 13, color: '#aaa', marginBottom: 12, marginTop: 12 }}>
+                        Control how far the video seeks when using keyboard shortcuts.
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                        <label style={{ color: '#fff', fontSize: 14 }}>Arrow Key Seek:</label>
+                        <input
+                          type="number"
+                          value={keyboardSeekSeconds}
+                          onChange={(e) => setKeyboardSeekSeconds(Math.max(0.1, parseFloat(e.target.value) || 2))}
+                          step="0.5"
+                          min="0.1"
+                          max="30"
+                          style={{
+                            background: '#444',
+                            border: '1px solid #666',
+                            color: '#fff',
+                            padding: '4px 8px',
+                            borderRadius: 4,
+                            width: '70px'
+                          }}
+                        />
+                        <span style={{ color: '#aaa', fontSize: 12 }}>seconds</span>
+                        {keyboardSeekSeconds !== 2 && (
+                          <button
+                            onClick={() => setKeyboardSeekSeconds(2)}
+                            style={{
+                              background: '#666',
+                              border: 'none',
+                              color: '#fff',
+                              padding: '4px 8px',
+                              borderRadius: 4,
+                              fontSize: 12,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Reset to 2s
+                          </button>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#888', marginTop: 8, paddingTop: 8, borderTop: '1px solid #333' }}>
+                        <strong>Keyboard Shortcuts:</strong>
+                        <br />
+                        ← Left Arrow: Seek backward • → Right Arrow: Seek forward • Spacebar: Play/Pause
+                        <br />
+                        Shortcuts only work when the app is focused and no text input is active.
+                      </div>
+                    </div>
                   </div>
                   
                   {/* Event Types Section - Collapsible */}

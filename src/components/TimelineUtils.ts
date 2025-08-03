@@ -79,6 +79,8 @@ export function calculateGameTimeOffset(events: EventData[], eventsMetadata?: Ev
   
   // Strategy 1: Use wall-clock timestamps if available (most accurate)
   if (eventsMetadata?.recordingStartTime) {
+    console.log('[Timeline] Using Strategy 1: Wall-clock timestamps');
+    
     // Look for events with capturedAt timestamps
     const eventsWithTimestamps = events.filter(e => (e as EnhancedEventData).capturedAt);
     
@@ -96,7 +98,6 @@ export function calculateGameTimeOffset(events: EventData[], eventsMetadata?: Ev
         return timeSinceRecording >= 1000;
       });
       
-      console.log('[Timeline] Total events:', events.length);
       console.log('[Timeline] Events with timestamps:', eventsWithTimestamps.length);
       console.log('[Timeline] Events captured after recording start:', relevantEvents.length);
       
@@ -120,20 +121,25 @@ export function calculateGameTimeOffset(events: EventData[], eventsMetadata?: Ev
       const gameTimeMs = firstRelevantEvent.EventTime * 1000;
       const videoTimeMs = eventCapturedMs - recordingStartMs;
       
+      // Validation: Check if the calculated timing makes sense
+      const offsetMs = videoTimeMs - gameTimeMs;
+      const offsetSeconds = offsetMs / 1000;
+      
+      console.log('[Timeline] Calculated precise offset:', offsetSeconds.toFixed(3), 's from', firstRelevantEvent.EventName, 'event');
+      
+      // Sanity check: offset should be reasonable (between -300s and +300s)
+      if (Math.abs(offsetSeconds) > 300) {
+        console.warn('[Timeline] Calculated offset seems unreasonable:', offsetSeconds.toFixed(1), 's - using fallback');
+        return 75; // Fallback to default
+      }
+      
       // Check if this looks like a full game recording vs mid-game
       const isFullGameRecording = firstRelevantEvent.EventTime < 30; // First event within 30s of game start
       
       if (isFullGameRecording) {
-        const offsetMs = videoTimeMs - gameTimeMs;
-        
-        console.log('[Timeline] Full game recording detected using wall-clock timestamps:');
-        console.log('  - Recording started at:', new Date(recordingStartMs).toISOString());
-        console.log('  - First relevant event:', firstRelevantEvent.EventName, 'at', firstRelevantEvent.EventTime, 's game time');
-        console.log('  - Event captured at:', new Date(eventCapturedMs).toISOString());
-        console.log('  - Video position:', (videoTimeMs / 1000).toFixed(1), 's');
-        console.log('  - Calculated loading time:', (offsetMs / 1000).toFixed(3), 's');
-        
-        return Math.max(0, offsetMs / 1000);
+        const result = Math.max(0, offsetSeconds);
+        console.log('[Timeline] ✓ Using precise wall-clock calculation:', result.toFixed(3), 's');
+        return result;
       } else {
         // Mid-game recording - store info for special timeline handling
         console.log('[Timeline] Mid-game recording detected:');
@@ -178,12 +184,9 @@ export function calculateGameTimeOffset(events: EventData[], eventsMetadata?: Ev
     }
   }
   
-  // Strategy 2: Use MinionsSpawning as the most reliable reference
-  // We know minions always spawn at 65s game time
-  // We need to estimate when they appear in the video timeline
+  // Strategy 2: Use MinionsSpawning as reference (fallback)
   const minionsEvent = events.find(e => e.EventName === 'MinionsSpawning');
   if (minionsEvent && typeof minionsEvent.EventTime === 'number' && minionsEvent.EventTime > 0) {
-    const gameTimeMinions = minionsEvent.EventTime;
     
     // More sophisticated heuristic based on game patterns:
     let estimatedLoadingTime = 75; // Default baseline
@@ -227,14 +230,7 @@ export function calculateGameTimeOffset(events: EventData[], eventsMetadata?: Ev
       }
     }
     
-    console.log('[Timeline] MinionsSpawning reference calculation:');
-    console.log('  - Minions spawn at:', gameTimeMinions, 's game time');
-    console.log('  - GameStart near zero:', gameStartNearZero);
-    console.log('  - First blood timing:', firstBloodEvent?.EventTime || 'none');
-    console.log('  - Early kills count:', earlyKills.length);
-    console.log('  - Estimated loading time:', estimatedLoadingTime, 's');
-    console.log('  - Calculated offset (loading time):', estimatedLoadingTime, 's');
-    
+    console.log('[Timeline] Using MinionsSpawning fallback estimate:', estimatedLoadingTime, 's');
     return estimatedLoadingTime;
   }
   
