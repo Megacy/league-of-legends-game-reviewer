@@ -58,8 +58,7 @@
       {
         "provider": "github",
         "owner": "Megacy",
-        "repo": "league-of-legends-game-reviewer",
-        "private": true
+        "repo": "league-of-legends-game-reviewer"
       }
     ],
     "npmRebuild": false,
