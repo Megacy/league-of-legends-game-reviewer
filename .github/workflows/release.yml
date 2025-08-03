@@ -49,10 +49,10 @@ jobs:
         files: |
           dist/Movlex-League-Recorder-*-arm64.dmg
           dist/Movlex-League-Recorder-*-arm64-mac.zip
+          dist/latest-mac.yml
         generate_release_notes: true
         draft: false
         prerelease: false
-        make_latest: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       

@@ -1,83 +1,86 @@
 # Automated Release System
 
-This project now includes a fully automated release system that handles everything with a single command.
+This project uses GitHub Actions for fully automated builds and releases. You just need to bump the version and push a tag.
 
 ## Quick Start
 
 ### Method 1: Using npm (Recommended)
 ```bash
-# Patch version (1.0.11 → 1.0.12)
-npm run release:now
+# Patch version (1.0.12 → 1.0.13)
+npm run release
 
-# Minor version (1.0.11 → 1.1.0)
-npm run release:now:minor
+# Minor version (1.0.12 → 1.1.0)
+npm run release:minor
 
-# Major version (1.0.11 → 2.0.0)
-npm run release:now:major
+# Major version (1.0.12 → 2.0.0)
+npm run release:major
 ```
 
 ### Method 2: Direct script execution
 ```bash
 # Patch version (default)
-./release-now.sh
+./simple-release.sh
 
 # Specific version types
-./release-now.sh patch
-./release-now.sh minor
-./release-now.sh major
+./simple-release.sh patch
+./simple-release.sh minor
+./simple-release.sh major
 ```
+
+## How it works
+
+### Your Part (Local):
+1. **Version bump**: Updates package.json version
+2. **Git operations**: Commits version bump, creates and pushes tag
+
+### GitHub Actions Part (Automatic):
+1. **Build**: Runs full build process (frontend + electron)
+2. **Package**: Creates DMG and ZIP files
+3. **Release**: Creates GitHub release with auto-generated notes
+4. **Upload**: Uploads all assets including the critical `latest-mac.yml`
 
 ## What the automation does
 
-1. **Pre-flight checks**: Ensures you're on main branch, no uncommitted changes, pulls latest code
-2. **Authentication**: Automatically handles GitHub CLI authentication
-3. **Version bump**: Updates package.json version
-4. **Build**: Runs full build process (npm run build + electron-builder)
-5. **Git operations**: Commits version bump, creates and pushes tags
-6. **GitHub release**: Creates release with auto-generated notes
-7. **Asset upload**: Uploads DMG, ZIP, and critically the `latest-mac.yml` file
-8. **Verification**: Checks that all assets are properly uploaded and accessible
+**Local Script (`simple-release.sh`):**
+- ✅ Pre-flight checks (main branch, clean working directory)
+- ✅ Pulls latest changes
+- ✅ Bumps version in package.json
+- ✅ Commits and tags the version
+- ✅ Pushes to GitHub
+
+**GitHub Actions (`.github/workflows/release.yml`):**
+- ✅ Triggered automatically by version tags
+- ✅ Builds the app on macOS runners
+- ✅ Creates GitHub release with generated notes
+- ✅ Uploads DMG, ZIP, and `latest-mac.yml` files
+- ✅ Ensures auto-updater works correctly
 
 ## Requirements
 
-- GitHub CLI (`gh`) - Install with `brew install gh`
 - Clean git working directory
 - Must be on `main` branch
-
-## First Time Setup
-
-1. Install GitHub CLI: `brew install gh`
-2. Login: `gh auth login` (only needed once)
-3. That's it! The scripts handle everything else.
+- GitHub Actions enabled (automatic)
 
 ## Usage Examples
 
 ```bash
 # Most common - patch release (bug fixes)
-npm run release:now
+npm run release
 
 # Feature release
-npm run release:now:minor
+npm run release:minor
 
 # Breaking changes
-npm run release:now:major
+npm run release:major
 ```
 
-The automation ensures that:
-- Your app's auto-updater will work correctly
-- All necessary files are uploaded
-- Version management is handled automatically
-- No manual steps required
+The process ensures that:
+- ✅ Your app's auto-updater will work correctly
+- ✅ All necessary files are uploaded automatically
+- ✅ Version management is handled seamlessly
+- ✅ No conflicts between local and remote build processes
 
-## Files
+## Monitoring
 
-- `auto-release.sh` - Core automation script
-- `release-now.sh` - Wrapper that handles authentication
-- `package.json` - Updated with new release scripts
-
-## Legacy Scripts (Deprecated)
-
-- `release.sh` - Old manual release script
-- `publish-release.sh` - Old manual publish script
-
-Use the new `npm run release:now` instead!
+After running the release command, you can monitor the GitHub Actions progress at:
+https://github.com/Megacy/league-of-legends-game-reviewer/actions
